@@ -28,6 +28,7 @@
 #include <libsolc/libsolc.h>
 
 #include <liblangutil/Exceptions.h>
+#include <liblangutil/SourceReferenceFormatter.h>
 
 #include <sstream>
 
@@ -100,7 +101,17 @@ void FuzzerUtil::testCompiler(StringMap& _input, bool _optimize, unsigned _rand,
 	compiler.setOptimiserSettings(optimiserSettings);
 	try
 	{
-		compiler.compile();
+		if (!compiler.compile())
+		{
+			langutil::SourceReferenceFormatter formatter(std::cerr);
+
+			for (auto const& error: compiler.errors())
+				formatter.printExceptionInformation(
+					*error,
+					formatter.formatErrorInformation(*error)
+				);
+			std::cerr << "Compiling contract failed" << std::endl;
+		}
 	}
 	catch (Error const&)
 	{

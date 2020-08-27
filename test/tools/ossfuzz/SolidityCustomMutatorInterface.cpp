@@ -38,6 +38,7 @@ extern "C" size_t LLVMFuzzerCustomMutator(
 	unsigned int _seed
 )
 {
+	solAssert(_data, "libFuzzerInterface: libFuzzer supplied bad buffer");
 	if (_maxSize <= _size || _size == 0)
 		return LLVMFuzzerMutate(_data, _size, _maxSize);
 	return SolidityCustomMutatorInterface{_data, _size, _maxSize, _seed}.generate();

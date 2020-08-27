@@ -1,0 +1,126 @@
+/*
+	This file is part of solidity.
+
+	solidity is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	solidity is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with solidity.  If not, see <http://www.gnu.org/licenses/>.
+*/
+// SPDX-License-Identifier: GPL-3.0
+/**
+ * Convenience macros for Solidity type declarations.
+ */
+
+#pragma once
+
+/*
+ * Alphabetically sorted Solidity types.
+ * SEP must appear between two elements and ENDSEP must
+ * appear after the last element.
+ */
+#define TYPELIST(MACRO, SEP, ENDSEP) \
+	MACRO(INT8) SEP \
+	MACRO(INT16) SEP \
+    MACRO(INT24) SEP \
+	MACRO(INT32) SEP \
+	MACRO(INT40) SEP \
+	MACRO(INT48) SEP \
+	MACRO(INT56) SEP \
+	MACRO(INT64) SEP \
+	MACRO(INT72) SEP \
+	MACRO(INT80) SEP \
+	MACRO(INT88) SEP \
+	MACRO(INT96) SEP \
+	MACRO(INT104) SEP \
+	MACRO(INT112) SEP \
+	MACRO(INT120) SEP \
+    MACRO(INT128) SEP \
+    MACRO(INT136) SEP \
+    MACRO(INT144) SEP \
+    MACRO(INT152) SEP \
+    MACRO(INT160) SEP \
+    MACRO(INT168) SEP \
+    MACRO(INT176) SEP \
+    MACRO(INT184) SEP \
+    MACRO(INT192) SEP \
+    MACRO(INT200) SEP \
+    MACRO(INT208) SEP \
+    MACRO(INT216) SEP \
+    MACRO(INT224) SEP \
+    MACRO(INT232) SEP \
+    MACRO(INT240) SEP \
+    MACRO(INT248) SEP \
+    MACRO(INT256) SEP \
+	MACRO(UINT8) SEP \
+	MACRO(UINT16) SEP \
+    MACRO(UINT24) SEP \
+	MACRO(UINT32) SEP \
+	MACRO(UINT40) SEP \
+	MACRO(UINT48) SEP \
+	MACRO(UINT56) SEP \
+	MACRO(UINT64) SEP \
+	MACRO(UINT72) SEP \
+	MACRO(UINT80) SEP \
+	MACRO(UINT88) SEP \
+	MACRO(UINT96) SEP \
+	MACRO(UINT104) SEP \
+	MACRO(UINT112) SEP \
+	MACRO(UINT120) SEP \
+    MACRO(UINT128) SEP \
+    MACRO(UINT136) SEP \
+    MACRO(UINT144) SEP \
+    MACRO(UINT152) SEP \
+    MACRO(UINT160) SEP \
+    MACRO(UINT168) SEP \
+    MACRO(UINT176) SEP \
+    MACRO(UINT184) SEP \
+    MACRO(UINT192) SEP \
+    MACRO(UINT200) SEP \
+    MACRO(UINT208) SEP \
+    MACRO(UINT216) SEP \
+    MACRO(UINT224) SEP \
+    MACRO(UINT232) SEP \
+    MACRO(UINT240) SEP \
+    MACRO(UINT248) SEP \
+    MACRO(UINT256) SEP \
+    MACRO(BYTES1) SEP \
+    MACRO(BYTES2) SEP \
+    MACRO(BYTES3) SEP \
+    MACRO(BYTES4) SEP \
+    MACRO(BYTES5) SEP \
+    MACRO(BYTES6) SEP \
+    MACRO(BYTES7) SEP \
+    MACRO(BYTES8) SEP \
+    MACRO(BYTES9) SEP \
+    MACRO(BYTES10) SEP \
+    MACRO(BYTES11) SEP \
+    MACRO(BYTES12) SEP \
+    MACRO(BYTES13) SEP \
+    MACRO(BYTES14) SEP \
+    MACRO(BYTES15) SEP \
+    MACRO(BYTES16) SEP \
+    MACRO(BYTES17) SEP \
+    MACRO(BYTES18) SEP \
+    MACRO(BYTES19) SEP \
+    MACRO(BYTES20) SEP \
+    MACRO(BYTES21) SEP \
+    MACRO(BYTES22) SEP \
+    MACRO(BYTES23) SEP \
+    MACRO(BYTES24) SEP \
+    MACRO(BYTES25) SEP \
+    MACRO(BYTES26) SEP \
+    MACRO(BYTES27) SEP \
+    MACRO(BYTES28) SEP \
+    MACRO(BYTES29) SEP \
+    MACRO(BYTES30) SEP \
+    MACRO(BYTES31) SEP \
+    MACRO(BYTES32) SEP \
+    MACRO(ADDRESS) ENDSEP
