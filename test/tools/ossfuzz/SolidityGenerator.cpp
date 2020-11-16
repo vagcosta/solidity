@@ -480,6 +480,7 @@ string StateVariableDeclarationGenerator::visit()
 		.render();
 }
 
+/*
 string IntegerType::visit()
 {
 	if (sign)
@@ -487,12 +488,14 @@ string IntegerType::visit()
 	else
 		return "uint" + width.visit();
 }
+ */
 
 string IntegerTypeGenerator::visit()
 {
-	bool sign = MP{}.chooseOneOfN(2, rand);
-	unsigned width = static_cast<unsigned>((*rand)());
-	return IntegerType(sign, width).visit();
+	//bool sign = MP{}.chooseOneOfN(2, rand);
+	//unsigned width = static_cast<unsigned>((*rand)());
+	//return IntegerType(sign, width).visit();
+	return "uint";
 }
 
 void UserDefinedTypeGenerator::setup()
@@ -630,7 +633,7 @@ string LocationGenerator::visit()
 string SimpleVariableDeclaration::visit()
 {
 	return Whiskers(simpleVarDeclTemplate)
-		("type", type->visit())
+		("type", "uint"/*type->visit()*/)
 		("location", location.visit())
 		("name", identifier)
 		("assign", expression.has_value())
@@ -655,7 +658,7 @@ string BlockStatement::visit()
 string VariableDeclaration::visit()
 {
 	return Whiskers(varDeclTemplate)
-		("type", type->visit())
+		("type", "uint"/*type->visit()*/)
 		("location", location.visit())
 		("name", identifier)
 		.render();

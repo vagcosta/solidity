@@ -23,6 +23,7 @@
 #pragma once
 
 #include <test/tools/ossfuzz/Generators.def>
+#include <test/tools/ossfuzz/Types.h>
 
 #include <libsolutil/Whiskers.h>
 
@@ -456,20 +457,25 @@ struct ExportedSymbols
 
 struct SolidityType
 {
-	enum class Type
+	enum class Type: size_t
 	{
-#define TYPESTRING(X) X
-#define COMMA ,
-#define EMPTY
-#include <test/tools/ossfuzz/Types.def>
-TYPELIST(TYPESTRING, COMMA, EMPTY)
-#undef COMMA
-#undef EMPTY
-#undef TYPESTRING
+		INTEGER,
+		BYTES,
+		TYPEMAX
 	};
-	virtual ~SolidityType() {}
-	std::string typeString(Type _type);
-	Type type;
+	TYPE_ENUM_DECLS(
+		Bytes,
+		BOOST_PP_REPEAT_FROM_TO(1, 34, BYTES_ENUM_ELEM, unused)
+	)
+	TYPE_ENUM_DECLS(
+		Integer,
+		BOOST_PP_REPEAT_FROM_TO(0, 32, INTEGER_ENUM_ELEM, INT),
+		BOOST_PP_REPEAT_FROM_TO(0, 32, INTEGER_ENUM_ELEM, UINT)
+	)
+	template <typename T>
+	std::pair<T, std::string> randomType(std::shared_ptr<RandomEngine> _rand);
+
+	virtual ~SolidityType() = default;
 };
 
 struct FunctionState
