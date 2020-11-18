@@ -487,30 +487,30 @@ struct SolidityType
 	};
 
 	SolidityType(TypeCategory _type, std::shared_ptr<RandomEngine> _rand):
-		m_typeCategory(_type),
+		typeCategory(_type),
 		randomEngine(std::move(_rand))
 	{
-		switch (m_typeCategory)
+		switch (typeCategory)
 		{
 		case TypeCategory::ADDRESS:
-			m_type = indexedAddressType(0);
+			type = indexedAddressType(0);
 			break;
 		case TypeCategory::BOOL:
-			m_type = indexedBoolType(0);
+			type = indexedBoolType(0);
 			break;
 		case TypeCategory::BYTES:
-			m_type = indexedBytesType(GenerationProbability{}.distributionOneToN(size_t(Bytes::BYTES) + 1, randomEngine) - 1);
+			type = indexedBytesType(GenerationProbability{}.distributionOneToN(size_t(Bytes::BYTES) + 1, randomEngine) - 1);
 			break;
 		case TypeCategory::INTEGER:
-			m_type = indexedIntegerType(GenerationProbability{}.distributionOneToN(size_t(Integer::UINT256) + 1, randomEngine) - 1);
+			type = indexedIntegerType(GenerationProbability{}.distributionOneToN(size_t(Integer::UINT256) + 1, randomEngine) - 1);
 			break;
 		case TypeCategory::TYPEMAX:
 			solAssert(false, "");
 		}
 	}
 	virtual ~SolidityType() = default;
-	TypeCategory m_typeCategory;
-	std::pair<Type, std::string> m_type;
+	TypeCategory typeCategory;
+	std::pair<Type, std::string> type;
 	std::shared_ptr<RandomEngine> randomEngine;
 };
 
@@ -888,13 +888,13 @@ struct IntegerWidth
 	unsigned width;
 };
 
-struct IntegerType: SolidityType
-{
-	IntegerType(bool _signed, unsigned _width): sign(_signed), width(_width)
-	{}
-	bool sign;
-	IntegerWidth width;
-};
+//struct IntegerType: SolidityType
+//{
+//	IntegerType(bool _signed, unsigned _width): sign(_signed), width(_width)
+//	{}
+//	bool sign;
+//	IntegerWidth width;
+//};
 
 struct Statement
 {
