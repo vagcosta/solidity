@@ -36,7 +36,7 @@ enum class typeName \
 { \
 	__VA_ARGS__ \
 }; \
-std::string toString(typeName e) \
+static std::string toString(typeName e) \
 { \
 	switch(e) \
 	{ \
@@ -47,17 +47,9 @@ std::string toString(typeName e) \
 	) \
 	} \
 } \
-std::pair<typeName, std::string> BOOST_PP_CAT(typeName, Type)(size_t _index) \
+static std::pair<typeName, std::string> BOOST_PP_CAT(indexed, BOOST_PP_CAT(typeName, Type))(size_t _index) \
 { \
     auto t = typeName(_index); \
 	return std::pair(t, toString(t)); \
-}
-
-#define RANDOM_TYPE \
-template <typename T> \
-std::pair<T, std::string> randomType(Type _type) \
-{                   \
-	solAssert(_type < Type::TYPEMAX, ""); \
-	switch(_index)     \
-                    \
-}
+} \
+static std::pair<typeName, std::string> BOOST_PP_CAT(random, BOOST_PP_CAT(typeName, Type))();
