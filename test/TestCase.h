@@ -41,6 +41,7 @@ public:
 		langutil::EVMVersion evmVersion;
 		std::vector<boost::filesystem::path> vmPaths;
 		bool enforceCompileViaYul;
+		bool enforceCompileToEwasm;
 	};
 
 	enum class TestResult { Success, Failure, FatalError };

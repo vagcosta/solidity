@@ -56,6 +56,7 @@ struct CommonOptions: boost::noncopyable
 	bool ewasm = false;
 	bool optimize = false;
 	bool enforceViaYul = false;
+	bool enforceCompileToEwasm = false;
 	bool disableSMT = false;
 	bool useABIEncoderV1 = false;
 	bool showMessages = false;
