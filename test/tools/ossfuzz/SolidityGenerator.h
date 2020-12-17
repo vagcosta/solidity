@@ -151,7 +151,7 @@ struct GeneratorBase
 	virtual void reset() = 0;
 	virtual std::string name() = 0;
 	virtual void setup() = 0;
-	virtual ~GeneratorBase() {};
+	virtual ~GeneratorBase() {}
 	std::shared_ptr<SolidityGenerator> mutator;
 	/// Random engine shared by Solidity mutators
 	std::shared_ptr<RandomEngine> rand;
@@ -274,6 +274,64 @@ private:
 	static size_t constexpr s_maxStaticArraySize = 5;
 };
 
+struct SolidityType
+{
+	TYPE_ENUM_DECLS(Address, ADDRESS)
+	TYPE_ENUM_DECLS(Bool, BOOL)
+	TYPE_ENUM_DECLS(
+		Bytes,
+		BOOST_PP_REPEAT_FROM_TO(1, 34, BYTES_ENUM_ELEM, unused)
+	)
+	TYPE_ENUM_DECLS(
+		Integer,
+		BOOST_PP_REPEAT_FROM_TO(0, 32, INTEGER_ENUM_ELEM, INT),
+		BOOST_PP_REPEAT_FROM_TO(0, 32, INTEGER_ENUM_ELEM, UINT)
+	)
+	enum class TypeCategory: size_t
+	{
+		BOOL,
+		ADDRESS,
+		INTEGER,
+		BYTES,
+		TYPEMAX
+	};
+	using Type = std::variant<Address, Bool, Bytes, Integer>;
+	struct TypeStringVisitor
+	{
+		template <typename T>
+		std::string operator()(T const& _type)
+		{
+			return toString(_type);
+		}
+	};
+	SolidityType(TypeCategory _type, std::shared_ptr<RandomEngine> _rand):
+		typeCategory(_type),
+		randomEngine(std::move(_rand))
+	{
+		switch (typeCategory)
+		{
+		case TypeCategory::ADDRESS:
+			type = indexedAddressType(0);
+			break;
+		case TypeCategory::BOOL:
+			type = indexedBoolType(0);
+			break;
+		case TypeCategory::BYTES:
+			type = indexedBytesType(GenerationProbability{}.distributionOneToN(size_t(Bytes::BYTES) + 1, randomEngine) - 1);
+			break;
+		case TypeCategory::INTEGER:
+			type = indexedIntegerType(GenerationProbability{}.distributionOneToN(size_t(Integer::UINT256) + 1, randomEngine) - 1);
+			break;
+		case TypeCategory::TYPEMAX:
+			solAssert(false, "");
+		}
+	}
+	virtual ~SolidityType() = default;
+	TypeCategory typeCategory;
+	std::pair<Type, std::string> type;
+	std::shared_ptr<RandomEngine> randomEngine;
+};
+
 class ExpressionGenerator: public GeneratorBase
 {
 public:
@@ -316,7 +374,8 @@ public:
 	):
 		GeneratorBase(std::move(_mutator)),
 		m_expressionNestingDepth(0),
-		m_compileTimeConstantExpressionsOnly(_compileTimeConstantExpressionsOnly)
+		m_compileTimeConstantExpressionsOnly(_compileTimeConstantExpressionsOnly),
+		m_type(randomTypeCategory((*rand)()), rand)
 	{}
 	void setup() override;
 	std::string visit() override;
@@ -328,7 +387,17 @@ public:
 	{
 		return "Expression Generator";
 	}
+	std::string typeString()
+	{
+		return m_type.type.second;
+	}
 private:
+	static SolidityType::TypeCategory randomTypeCategory(size_t _pseudoRandomNumber)
+	{
+		return static_cast<SolidityType::TypeCategory>(
+			_pseudoRandomNumber % static_cast<size_t>(SolidityType::TypeCategory::TYPEMAX)
+		);
+	}
 	std::string boolLiteral()
 	{
 		return GenerationProbability{}.chooseOneOfN(2, rand) ? "true" : "false";
@@ -349,6 +418,7 @@ private:
 	}
 	size_t m_expressionNestingDepth;
 	bool m_compileTimeConstantExpressionsOnly;
+	SolidityType m_type;
 	static constexpr size_t s_maxNumNestedExpressions = 5;
 	static constexpr size_t s_maxStringLength = 10;
 	static constexpr size_t s_maxHexLiteralLength = 64;
@@ -453,65 +523,6 @@ struct ExportedSymbols
 	std::string randomUserDefinedType(std::shared_ptr<RandomEngine> _rand);
 	std::set<std::string> symbols;
 	std::set<std::string> types;
-};
-
-struct SolidityType
-{
-	TYPE_ENUM_DECLS(Address, ADDRESS)
-	TYPE_ENUM_DECLS(Bool, BOOL)
-	TYPE_ENUM_DECLS(
-		Bytes,
-		BOOST_PP_REPEAT_FROM_TO(1, 34, BYTES_ENUM_ELEM, unused)
-	)
-	TYPE_ENUM_DECLS(
-		Integer,
-		BOOST_PP_REPEAT_FROM_TO(0, 32, INTEGER_ENUM_ELEM, INT),
-		BOOST_PP_REPEAT_FROM_TO(0, 32, INTEGER_ENUM_ELEM, UINT)
-	)
-	enum class TypeCategory: size_t
-	{
-		BOOL,
-		ADDRESS,
-		INTEGER,
-		BYTES,
-		TYPEMAX
-	};
-	using Type = std::variant<Address, Bool, Bytes, Integer>;
-	struct TypeStringVisitor
-	{
-		template <typename T>
-		std::string operator()(T const& _type)
-		{
-			return toString(_type);
-		}
-	};
-
-	SolidityType(TypeCategory _type, std::shared_ptr<RandomEngine> _rand):
-		typeCategory(_type),
-		randomEngine(std::move(_rand))
-	{
-		switch (typeCategory)
-		{
-		case TypeCategory::ADDRESS:
-			type = indexedAddressType(0);
-			break;
-		case TypeCategory::BOOL:
-			type = indexedBoolType(0);
-			break;
-		case TypeCategory::BYTES:
-			type = indexedBytesType(GenerationProbability{}.distributionOneToN(size_t(Bytes::BYTES) + 1, randomEngine) - 1);
-			break;
-		case TypeCategory::INTEGER:
-			type = indexedIntegerType(GenerationProbability{}.distributionOneToN(size_t(Integer::UINT256) + 1, randomEngine) - 1);
-			break;
-		case TypeCategory::TYPEMAX:
-			solAssert(false, "");
-		}
-	}
-	virtual ~SolidityType() = default;
-	TypeCategory typeCategory;
-	std::pair<Type, std::string> type;
-	std::shared_ptr<RandomEngine> randomEngine;
 };
 
 struct FunctionState
@@ -720,7 +731,7 @@ public:
 		return state;
 	}
 private:
-	std::string path(unsigned _number) const
+	std::string path(size_t _number) const
 	{
 		return m_sourceUnitNamePrefix + std::to_string(_number) + ".sol";
 	}

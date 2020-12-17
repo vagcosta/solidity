@@ -53,3 +53,4 @@ static std::pair<typeName, std::string> BOOST_PP_CAT(indexed, BOOST_PP_CAT(typeN
 	return std::pair(t, toString(t)); \
 } \
 static std::pair<typeName, std::string> BOOST_PP_CAT(random, BOOST_PP_CAT(typeName, Type))();
+

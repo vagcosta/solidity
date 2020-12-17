@@ -107,7 +107,9 @@ string GenerationProbability::generateRandomAsciiString(size_t _length, std::sha
 {
 	vector<char> s{};
 	for (size_t i = 0; i < _length * 2; i++)
-		s.push_back(Distribution(0x21, 0x7e)(*_rand));
+		s.push_back(
+			static_cast<char>(Distribution(0x21, 0x7e)(*_rand))
+		);
 	return string(s.begin(), s.end());
 }
 
@@ -282,15 +284,15 @@ string ExpressionGenerator::numberLiteral()
 		MP{}.distributionOneToN(s_maxHexLiteralLength, rand),
 		rand
 	);
-	return Whiskers(R"(<?hex>0x</hex><number>)")
-		("hex", n == MP::NumberLiteral::HEX)
-		("number", s)
-		.render();
+	if (n == MP::NumberLiteral::HEX)
+		return "hex\"" + s + "\"";
+	else
+		return s;
 }
 
 string ExpressionGenerator::addressLiteral()
 {
-	return Whiskers(R"(0x"<string>")")
+	return Whiskers(R"(0x<string>)")
 		("string", MP{}.generateRandomHexString(20, rand))
 		.render();
 }
@@ -320,93 +322,110 @@ string ExpressionGenerator::expression()
 
 	incrementNestingDepth();
 
+	string expr;
 	switch (MP{}.distributionOneToN(Type::TYPEMAX, rand) - 1)
 	{
 	case Type::INDEXACCESS:
-		return Whiskers(R"(<baseExpr>[<indexExpr>])")
+		expr = Whiskers(R"(<baseExpr>[<indexExpr>])")
 			("baseExpr", expression())
 			("indexExpr", expression())
 			.render();
+		break;
 	case Type::INDEXRANGEACCESS:
-		return Whiskers(R"(<baseExpr>[<startExpr>:<endExpr>])")
+		expr = Whiskers(R"(<baseExpr>[<startExpr>:<endExpr>])")
 			("baseExpr", expression())
 			("startExpr", expression())
 			("endExpr", expression())
 			.render();
+		break;
 	case Type::METATYPE:
-		return Whiskers(R"(type(<typeName>))")
+		expr = Whiskers(R"(type(<typeName>))")
 			("typeName", generator<TypeGenerator>()->visit())
 			.render();
+		break;
 	case Type::BITANDOP:
-		return Whiskers(R"(<left> & <right>)")
+		expr = Whiskers(R"(<left> & <right>)")
 			("left", expression())
 			("right", expression())
 			.render();
+		break;
 	case Type::BITOROP:
-		return Whiskers(R"(<left> | <right>)")
+		expr = Whiskers(R"(<left> | <right>)")
 			("left", expression())
 			("right", expression())
 			.render();
+		break;
 	case Type::BITXOROP:
-		return Whiskers(R"(<left> ^ <right>)")
+		expr = Whiskers(R"(<left> ^ <right>)")
 			("left", expression())
 			("right", expression())
 			.render();
+		break;
 	case Type::ANDOP:
-		return Whiskers(R"(<left> && <right>)")
+		expr = Whiskers(R"(<left> && <right>)")
 			("left", expression())
 			("right", expression())
 			.render();
+		break;
 	case Type::OROP:
-		return Whiskers(R"(<left> || <right>)")
+		expr = Whiskers(R"(<left> || <right>)")
 			("left", expression())
 			("right", expression())
 			.render();
+		break;
 	case Type::NEWEXPRESSION:
-		return Whiskers(R"(new <typeName>)")
+		expr = Whiskers(R"(new <typeName>)")
 			("typeName", generator<TypeGenerator>()->visit())
 			.render();
+		break;
 	case Type::CONDITIONAL:
-		return Whiskers(R"(<conditional> ? <trueExpression> : <falseExpression)")
+		expr = Whiskers(R"(<conditional> ? <trueExpression> : <falseExpression)")
 			("conditional", expression())
 			("trueExpression", expression())
 			("falseExpression", expression())
 			.render();
+		break;
 	case Type::ASSIGNMENT:
-		return Whiskers(R"(<left> = <right>)")
+		expr = Whiskers(R"(<left> = <right>)")
 			("left", expression())
 			("right", expression())
 			.render();
+		break;
 	case Type::INLINEARRAY:
 	{
-		vector<string> expr{};
+		vector<string> exprs{};
 		size_t numElementsInTuple = MP{}.distributionOneToN(s_maxElementsInlineArray, rand);
 		for (size_t i = 0; i < numElementsInTuple; i++)
-			expr.push_back(expression());
-		return Whiskers(R"([<inlineArrayExpression>])")
-			("inlineArrayExpression", boost::algorithm::join(expr, ", "))
+			exprs.push_back(expression());
+		expr = Whiskers(R"([<inlineArrayExpression>])")
+			("inlineArrayExpression", boost::algorithm::join(exprs, ", "))
 			.render();
+		break;
 	}
 	case Type::IDENTIFIER:
 		if (state->currentSourceState().symbols())
-			return state->currentSourceState().exportedSymbols.randomSymbol(rand);
+			expr = state->currentSourceState().exportedSymbols.randomSymbol(rand);
 		else
-			return literal();
+			expr = literal();
+		break;
 	case Type::LITERAL:
-		return literal();
+		expr = literal();
+		break;
 	case Type::TUPLE:
 	{
-		vector<string> expr{};
+		vector<string> exprs{};
 		size_t numElementsInTuple = MP{}.distributionOneToN(s_maxElementsInTuple, rand);
 		for (size_t i = 0; i < numElementsInTuple; i++)
-			expr.push_back(expression());
-		return Whiskers(R"((<tupleExpression>))")
-			("tupleExpression", boost::algorithm::join(expr, ", "))
+			exprs.push_back(expression());
+		expr = Whiskers(R"((<tupleExpression>))")
+			("tupleExpression", boost::algorithm::join(exprs, ", "))
 			.render();
+		break;
 	}
 	default:
-		return literal();
+		expr = literal();
 	}
+	return typeString() + "(" + expr + ")";
 }
 
 void ExpressionGenerator::setup()
@@ -448,7 +467,6 @@ void StateVariableDeclarationGenerator::setup()
 {
 	addGenerators(
 		{
-			mutator->generator<TypeGenerator>(),
 			mutator->generator<ExpressionGenerator>(),
 			mutator->generator<NatSpecGenerator>()
 		}
@@ -458,7 +476,7 @@ void StateVariableDeclarationGenerator::setup()
 string StateVariableDeclarationGenerator::visit()
 {
 	string id = identifier();
-    string type = generator<TypeGenerator>()->visit();
+    string type = generator<ExpressionGenerator>()->typeString();
 	string vis = visibility();
 	bool immutable = false;
 	bool constant = MP{}.chooseOneOfN(2, rand);
@@ -845,7 +863,6 @@ void ConstantVariableDeclaration::setup()
 {
 	addGenerators(
 		{
-			mutator->generator<TypeGenerator>(),
 			mutator->generator<ExpressionGenerator>()
 		}
 	);
@@ -855,9 +872,8 @@ string ConstantVariableDeclaration::visit()
 {
 	// TODO: Set compileTimeConstantExpressionsOnly in
 	// ExpressionGenerator to true
-
 	return Whiskers(constantVarDeclTemplate)
-		("type", generator<TypeGenerator>()->visit())
+		("type", generator<ExpressionGenerator>()->typeString())
 		("name", "c")
 		("expression", generator<ExpressionGenerator>()->visit())
 		.render();

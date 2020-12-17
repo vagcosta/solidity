@@ -49,3 +49,4 @@
 	MACRO(TypeGenerator) SEP \
 	MACRO(UserDefinedTypeGenerator) SEP \
 	MACRO(VariableDeclarationGenerator) ENDSEP
+
