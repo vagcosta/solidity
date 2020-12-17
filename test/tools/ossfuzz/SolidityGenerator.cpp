@@ -38,10 +38,10 @@ const std::vector<std::string> FunctionDefinitionGenerator::s_visibility = {
 	"internal"
 };
 
-const vector<string> FunctionTypeGenerator::s_visibility = {
-	"external",
-	"internal"
-};
+//const vector<string> FunctionTypeGenerator::s_visibility = {
+//	"external",
+//	"internal"
+//};
 
 const vector<string> FunctionDefinitionGenerator::s_mutability = {
 	"payable",
@@ -262,9 +262,7 @@ string ExpressionGenerator::doubleQuotedStringLiteral()
 		MP{}.distributionOneToN(s_maxStringLength, rand),
 		rand
 	);
-	return Whiskers(R"("<string>")")
-		("string", s)
-		.render();
+	return s;
 }
 
 string ExpressionGenerator::hexLiteral()
@@ -273,9 +271,7 @@ string ExpressionGenerator::hexLiteral()
 		MP{}.distributionOneToN(s_maxHexLiteralLength, rand),
 		rand
 	);
-	return Whiskers(R"(hex"<string>")")
-		("string", s)
-		.render();
+	return "hex\"" + s + "\"";
 }
 
 string ExpressionGenerator::numberLiteral()
@@ -292,9 +288,7 @@ string ExpressionGenerator::numberLiteral()
 
 string ExpressionGenerator::addressLiteral()
 {
-	return Whiskers(R"(0x<string>)")
-		("string", MP{}.generateRandomHexString(20, rand))
-		.render();
+	return "0x" + MP{}.generateRandomHexString(20, rand);
 }
 
 string ExpressionGenerator::literal()
@@ -340,7 +334,7 @@ string ExpressionGenerator::expression()
 		break;
 	case Type::METATYPE:
 		expr = Whiskers(R"(type(<typeName>))")
-			("typeName", generator<TypeGenerator>()->visit())
+			("typeName", randomTypeString())
 			.render();
 		break;
 	case Type::BITANDOP:
@@ -375,7 +369,7 @@ string ExpressionGenerator::expression()
 		break;
 	case Type::NEWEXPRESSION:
 		expr = Whiskers(R"(new <typeName>)")
-			("typeName", generator<TypeGenerator>()->visit())
+			("typeName", randomTypeString())
 			.render();
 		break;
 	case Type::CONDITIONAL:
@@ -426,15 +420,6 @@ string ExpressionGenerator::expression()
 		expr = literal();
 	}
 	return typeString() + "(" + expr + ")";
-}
-
-void ExpressionGenerator::setup()
-{
-	addGenerators(
-		{
-			mutator->generator<TypeGenerator>()
-		}
-	);
 }
 
 string ExpressionGenerator::visit()
@@ -498,124 +483,25 @@ string StateVariableDeclarationGenerator::visit()
 		.render();
 }
 
-/*
-string IntegerType::visit()
-{
-	if (sign)
-		return "int" + width.visit();
-	else
-		return "uint" + width.visit();
-}
- */
-
-string IntegerTypeGenerator::visit()
-{
-	//bool sign = MP{}.chooseOneOfN(2, rand);
-	//unsigned width = static_cast<unsigned>((*rand)());
-	//return IntegerType(sign, width).visit();
-	return "uint";
-}
-
-void UserDefinedTypeGenerator::setup()
-{
-	addGenerators({mutator->generator<FunctionTypeGenerator>()});
-}
-
-string UserDefinedTypeGenerator::visit()
-{
-	switch (MP{}.distributionOneToN(2, rand))
-	{
-	case 1:
-		if (state->currentSourceState().userDefinedTypes())
-			return state->currentSourceState().exportedSymbols.randomUserDefinedType(rand);
-		else
-			return "uint";
-	case 2:
-		return generator<FunctionTypeGenerator>()->visit();
-	}
-	solAssert(false, "");
-}
-
-void BytesTypeGenerator::setup()
-{
-	addGenerators({mutator->generator<TypeGenerator>()});
-}
-
-string BytesTypeGenerator::visit()
-{
-	bool isBytes = MP{}.chooseOneOfN(33, rand);
-	if (isBytes)
-		generator<TypeGenerator>()->setNonValueType();
-	return Whiskers(R"(bytes<?width><w></width>)")
-		("width", !isBytes)
-		("w", to_string(MP{}.distributionOneToN(32, rand)))
-		.render();
-}
-
-string BoolTypeGenerator::visit()
-{
-	return "bool";
-}
-
-string AddressTypeGenerator::visit()
-{
-	return MP{}.chooseOneOfN(2, rand) ? "address" : "address payable";
-}
-
-void TypeGenerator::setup()
-{
-	addGenerators(
-		{
-			mutator->generator<IntegerTypeGenerator>(),
-			mutator->generator<UserDefinedTypeGenerator>(),
-			mutator->generator<ArrayTypeGenerator>(),
-			mutator->generator<BytesTypeGenerator>(),
-			mutator->generator<BoolTypeGenerator>(),
-			mutator->generator<AddressTypeGenerator>()
-		}
-	);
-}
-
-string TypeGenerator::visitNonArrayType()
-{
-	vector<GeneratorPtr> g;
-	for (auto &gen: generators)
-		if (!holds_alternative<shared_ptr<ArrayTypeGenerator>>(gen))
-			g.push_back(gen);
-	return std::visit(
-		GeneratorVisitor{},
-		g[MP{}.distributionOneToN(g.size(), rand) - 1]
-	);
-}
-
-string TypeGenerator::visit()
-{
-	return std::visit(GeneratorVisitor{}, randomGenerator());
-}
-
-void ArrayTypeGenerator::setup()
-{
-	addGenerators(
-		{
-			mutator->generator<TypeGenerator>()
-		}
-	);
-}
-
-string ArrayTypeGenerator::visit()
-{
-	if (m_numDimensions > s_maxArrayDimensions)
-		return generator<TypeGenerator>()->visitNonArrayType();
-	else
-	{
-		m_numDimensions++;
-		return Whiskers(R"(<baseType>[<?static><size></static>])")
-			("baseType", generator<TypeGenerator>()->visit())
-			("static", MP{}.chooseOneOfN(2, rand))
-			("size", to_string(MP{}.distributionOneToN(s_maxStaticArraySize, rand)))
-			.render();
-	}
-}
+//void UserDefinedTypeGenerator::setup()
+//{
+//	addGenerators({mutator->generator<FunctionTypeGenerator>()});
+//}
+//
+//string UserDefinedTypeGenerator::visit()
+//{
+//	switch (MP{}.distributionOneToN(2, rand))
+//	{
+//	case 1:
+//		if (state->currentSourceState().userDefinedTypes())
+//			return state->currentSourceState().exportedSymbols.randomUserDefinedType(rand);
+//		else
+//			return "uint";
+//	case 2:
+//		return generator<FunctionTypeGenerator>()->visit();
+//	}
+//	solAssert(false, "");
+//}
 
 string Location::visit()
 {
@@ -693,21 +579,16 @@ void VariableDeclarationGenerator::setup()
 	addGenerators(
 		{
 			mutator->generator<LocationGenerator>(),
-			mutator->generator<TypeGenerator>()
+			mutator->generator<ExpressionGenerator>()
 		}
 	);
 }
 
 string VariableDeclarationGenerator::visit()
 {
-	string type = generator<TypeGenerator>()->visit();
-	bool nonValueType = dynamic_pointer_cast<TypeGenerator>(generator<TypeGenerator>())->nonValueType();
-	string location = nonValueType ? generator<LocationGenerator>()->visit() : "";
-	return Whiskers(R"(<type> <location> <id>)")
-		("type", type)
-		("location", location)
-		("id", identifier())
-		.render();
+	string type = generator<ExpressionGenerator>()->typeString();
+	string location = generator<LocationGenerator>()->visit();
+	return type + " " + location + " " + identifier();
 }
 
 void ParameterListGenerator::setup()
@@ -748,7 +629,7 @@ void FunctionDefinitionGenerator::setup()
 	addGenerators(
 		{
 			mutator->generator<ParameterListGenerator>(),
-			mutator->generator<TypeGenerator>(),
+			mutator->generator<ExpressionGenerator>(),
 			mutator->generator<NatSpecGenerator>()
 		}
 	);
@@ -775,7 +656,7 @@ string FunctionDefinitionGenerator::visit()
 	string returns{};
 	for (size_t i = 0; i < numReturns; i++)
 	{
-		returns += sep + generator<TypeGenerator>()->visit();
+		returns += sep + generator<ExpressionGenerator>()->randomTypeString();
 		if (sep.empty())
 			sep = ", ";
 	}
@@ -820,44 +701,44 @@ string EnumDeclaration::visit()
 		.render();
 }
 
-void FunctionTypeGenerator::setup()
-{
-	addGenerators(
-		{
-			mutator->generator<TypeGenerator>()
-		}
-	);
-}
-
-string FunctionTypeGenerator::visit()
-{
-	string visibility = MP{}.chooseOneOfNStrings(s_visibility, rand);
-	size_t numParams = MP{}.distributionOneToN(4, rand) - 1;
-	size_t numReturns = MP{}.distributionOneToN(4, rand) - 1;
-	string sep{};
-	string params{};
-	for (size_t i = 0; i < numParams; i++)
-	{
-		params += sep + generator<TypeGenerator>()->visit();
-		if (sep.empty())
-			sep = ", ";
-	}
-	sep = {};
-	string returns{};
-	for (size_t i = 0; i < numReturns; i++)
-	{
-		returns += sep + generator<TypeGenerator>()->visit();
-		if (sep.empty())
-			sep = ", ";
-	}
-	return Whiskers(m_functionTypeTemplate)
-		("paramList", params)
-		("visibility", visibility)
-		("stateMutability", MP{}.chooseOneOfNStrings(FunctionDefinitionGenerator::s_mutability, rand))
-		("return", !returns.empty())
-		("retParamList", returns)
-		.render();
-}
+//void FunctionTypeGenerator::setup()
+//{
+//	addGenerators(
+//		{
+//			mutator->generator<TypeGenerator>()
+//		}
+//	);
+//}
+//
+//string FunctionTypeGenerator::visit()
+//{
+//	string visibility = MP{}.chooseOneOfNStrings(s_visibility, rand);
+//	size_t numParams = MP{}.distributionOneToN(4, rand) - 1;
+//	size_t numReturns = MP{}.distributionOneToN(4, rand) - 1;
+//	string sep{};
+//	string params{};
+//	for (size_t i = 0; i < numParams; i++)
+//	{
+//		params += sep + generator<TypeGenerator>()->visit();
+//		if (sep.empty())
+//			sep = ", ";
+//	}
+//	sep = {};
+//	string returns{};
+//	for (size_t i = 0; i < numReturns; i++)
+//	{
+//		returns += sep + generator<TypeGenerator>()->visit();
+//		if (sep.empty())
+//			sep = ", ";
+//	}
+//	return Whiskers(m_functionTypeTemplate)
+//		("paramList", params)
+//		("visibility", visibility)
+//		("stateMutability", MP{}.chooseOneOfNStrings(FunctionDefinitionGenerator::s_mutability, rand))
+//		("return", !returns.empty())
+//		("retParamList", returns)
+//		.render();
+//}
 
 void ConstantVariableDeclaration::setup()
 {
@@ -1096,5 +977,7 @@ string SolidityGenerator::generateTestProgram()
 	createGenerators();
 	for (auto &g: m_generators)
 		std::visit(AddDependenciesVisitor{}, g);
-	return generator<TestCaseGenerator>()->visit();
+	string program = generator<TestCaseGenerator>()->visit();
+	destroyGenerators();
+	return program;
 }

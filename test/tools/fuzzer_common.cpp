@@ -103,7 +103,7 @@ void FuzzerUtil::testCompiler(StringMap& _input, bool _optimize, unsigned _rand,
 	{
 		if (!compiler.compile())
 		{
-			langutil::SourceReferenceFormatter formatter(std::cerr);
+			langutil::SourceReferenceFormatter formatter(std::cerr, false, false);
 
 			for (auto const& error: compiler.errors())
 				formatter.printExceptionInformation(

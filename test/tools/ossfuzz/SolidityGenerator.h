@@ -159,120 +159,41 @@ struct GeneratorBase
 	std::set<GeneratorPtr> generators;
 };
 
-class IntegerTypeGenerator: public GeneratorBase
-{
-public:
-	IntegerTypeGenerator(std::shared_ptr<SolidityGenerator> _mutator): GeneratorBase(std::move(_mutator))
-	{}
-	std::string visit() override;
-	void setup() override {}
-	void reset() override {}
-	std::string name() override
-	{
-		return "IntegerTypeGenerator";
-	}
-};
-
-class BytesTypeGenerator: public GeneratorBase
-{
-public:
-	BytesTypeGenerator(std::shared_ptr<SolidityGenerator> _mutator):
-		GeneratorBase(std::move(_mutator))
-	{}
-	void setup() override;
-	std::string visit() override;
-	void reset() override {}
-	std::string name() override
-	{
-		return "BytesTypeGenerator";
-	}
-};
-
-class BoolTypeGenerator: public GeneratorBase
-{
-public:
-	BoolTypeGenerator(std::shared_ptr<SolidityGenerator> _mutator):
-		GeneratorBase(std::move(_mutator))
-	{}
-	void setup() override {}
-	std::string visit() override;
-	void reset() override {}
-	std::string name() override
-	{
-		return "BoolTypeGenerator";
-	}
-};
-
-class AddressTypeGenerator: public GeneratorBase
-{
-public:
-	AddressTypeGenerator(std::shared_ptr<SolidityGenerator> _mutator):
-		GeneratorBase(std::move(_mutator))
-	{}
-	void setup() override {}
-	std::string visit() override;
-	void reset() override {}
-	std::string name() override
-	{
-		return "AddressTypeGenerator";
-	}
-};
-
-class FunctionTypeGenerator: public GeneratorBase
-{
-public:
-	FunctionTypeGenerator(std::shared_ptr<SolidityGenerator> _mutator):
-		GeneratorBase(std::move(_mutator))
-	{}
-	void setup() override;
-	void reset() override {}
-	std::string name() override
-	{
-		return "Function type generator";
-	}
-	std::string visit() override;
-private:
-	static const std::vector<std::string> s_visibility;
-	std::string const m_functionTypeTemplate =
-		std::string(R"(function (<paramList>) )") +
-		R"(<visibility> <stateMutability>)" +
-		R"(<?return> returns (<retParamList>)</return>)";
-};
-
-class UserDefinedTypeGenerator: public GeneratorBase
-{
-public:
-	UserDefinedTypeGenerator(std::shared_ptr<SolidityGenerator> _mutator):
-		GeneratorBase(std::move(_mutator))
-	{}
-	void setup() override;
-	std::string visit() override;
-	void reset() override {}
-	std::string name() override
-	{
-		return "User defined type generator";
-	}
-};
-
-class ArrayTypeGenerator: public GeneratorBase
-{
-public:
-	ArrayTypeGenerator(std::shared_ptr<SolidityGenerator> _mutator):
-		GeneratorBase(std::move(_mutator)),
-		m_numDimensions(0)
-	{}
-	void setup() override;
-	std::string visit() override;
-	void reset() override {}
-	std::string name() override
-	{
-		return "Array type generator";
-	}
-private:
-	size_t m_numDimensions;
-	static size_t constexpr s_maxArrayDimensions = 3;
-	static size_t constexpr s_maxStaticArraySize = 5;
-};
+//class FunctionTypeGenerator: public GeneratorBase
+//{
+//public:
+//	FunctionTypeGenerator(std::shared_ptr<SolidityGenerator> _mutator):
+//		GeneratorBase(std::move(_mutator))
+//	{}
+//	void setup() override;
+//	void reset() override {}
+//	std::string name() override
+//	{
+//		return "Function type generator";
+//	}
+//	std::string visit() override;
+//private:
+//	static const std::vector<std::string> s_visibility;
+//	std::string const m_functionTypeTemplate =
+//		std::string(R"(function (<paramList>) )") +
+//		R"(<visibility> <stateMutability>)" +
+//		R"(<?return> returns (<retParamList>)</return>)";
+//};
+//
+//class UserDefinedTypeGenerator: public GeneratorBase
+//{
+//public:
+//	UserDefinedTypeGenerator(std::shared_ptr<SolidityGenerator> _mutator):
+//		GeneratorBase(std::move(_mutator))
+//	{}
+//	void setup() override;
+//	std::string visit() override;
+//	void reset() override {}
+//	std::string name() override
+//	{
+//		return "User defined type generator";
+//	}
+//};
 
 struct SolidityType
 {
@@ -377,7 +298,7 @@ public:
 		m_compileTimeConstantExpressionsOnly(_compileTimeConstantExpressionsOnly),
 		m_type(randomTypeCategory((*rand)()), rand)
 	{}
-	void setup() override;
+	void setup() override {}
 	std::string visit() override;
 	void reset() override
 	{
@@ -390,6 +311,10 @@ public:
 	std::string typeString()
 	{
 		return m_type.type.second;
+	}
+	std::string randomTypeString()
+	{
+		return SolidityType(randomTypeCategory((*rand)()), rand).type.second;
 	}
 private:
 	static SolidityType::TypeCategory randomTypeCategory(size_t _pseudoRandomNumber)
@@ -456,33 +381,6 @@ private:
 	std::string const m_declarationTemplate =
 		std::string(R"(<natSpecString>)") +
 		R"(<type> <vis><?constant> constant</constant><?immutable> immutable</immutable> <id> = <value>;)";
-};
-
-class TypeGenerator: public GeneratorBase
-{
-public:
-	TypeGenerator(std::shared_ptr<SolidityGenerator> _mutator):
-		GeneratorBase(std::move(_mutator)),
-		m_nonValueType(false)
-	{}
-	void setup() override;
-	std::string visit() override;
-	std::string visitNonArrayType();
-	void reset() override {}
-	std::string name() override
-	{
-		return "TypeGenerator";
-	}
-	bool nonValueType()
-	{
-		return m_nonValueType;
-	}
-	void setNonValueType()
-	{
-		m_nonValueType = true;
-	}
-private:
-	bool m_nonValueType;
 };
 
 struct Exports
@@ -899,14 +797,6 @@ struct IntegerWidth
 	unsigned width;
 };
 
-//struct IntegerType: SolidityType
-//{
-//	IntegerType(bool _signed, unsigned _width): sign(_signed), width(_width)
-//	{}
-//	bool sign;
-//	IntegerWidth width;
-//};
-
 struct Statement
 {
 	virtual ~Statement() {}
@@ -1303,20 +1193,11 @@ private:
 	}
 	template <std::size_t I = 0>
 	void createGenerators();
-
+	void destroyGenerators()
+	{
+		m_generators.clear();
+	}
 	void initialize();
-
-	/// @returns either true or false with roughly the same probability
-	bool coinToss()
-	{
-		return (*m_rand)() % 2 == 0;
-	}
-	/// @returns a pseudo randomly chosen unsigned integer between one
-	/// and @param _n
-	size_t randomOneToN(size_t _n)
-	{
-		return Distribution(1, _n)(*m_rand);
-	}
 	/// Random number generator
 	std::shared_ptr<RandomEngine> m_rand;
 	/// Sub generators
