@@ -115,7 +115,7 @@ string GenerationProbability::generateRandomAsciiString(size_t _length, std::sha
 
 string GenerationProbability::generateRandomHexString(size_t _length, std::shared_ptr<RandomEngine> _rand)
 {
-	static char const* hexDigit = "0123456789abcdefABCDEF_";
+	static char const* hexDigit = "0123456789abcdefABCDEF";
 	vector<char> s{};
 	for (size_t i = 0; i < _length * 2; i++)
 		s.push_back(hexDigit[distributionOneToN(23, _rand) - 1]);
@@ -127,8 +127,8 @@ pair<GenerationProbability::NumberLiteral, string> GenerationProbability::genera
 	std::shared_ptr<RandomEngine> _rand
 )
 {
-	static char const* hexDigit = "0123456789abcdefABCDEF_";
-	static char const* decimalDigit = "0123456789_eE-.";
+	static char const* hexDigit = "0123456789abcdefABCDEF";
+	static char const* decimalDigit = "0123456789eE";
 	vector<char> s{};
 	NumberLiteral n;
 	if (chooseOneOfN(2, _rand))
@@ -293,18 +293,18 @@ string ExpressionGenerator::addressLiteral()
 
 string ExpressionGenerator::literal()
 {
-	switch (MP{}.distributionOneToN(5, rand))
+	switch (m_type.typeCategory)
 	{
-	case 1:
-		return doubleQuotedStringLiteral();
-	case 2:
-		return hexLiteral();
-	case 3:
-		return numberLiteral();
-	case 4:
-		return boolLiteral();
-	case 5:
+	case SolidityType::TypeCategory::ADDRESS:
 		return addressLiteral();
+	case SolidityType::TypeCategory::BOOL:
+		return boolLiteral();
+	case SolidityType::TypeCategory::BYTES:
+		return hexLiteral();
+	case SolidityType::TypeCategory::INTEGER:
+		return numberLiteral();
+	case SolidityType::TypeCategory::TYPEMAX:
+		solAssert(false, "");
 	}
 	solAssert(false, "");
 }
@@ -534,15 +534,26 @@ string LocationGenerator::visit()
 	solAssert(false, "");
 }
 
-string SimpleVariableDeclaration::visit()
+void SimpleVarDeclGenerator::setup()
+{
+	addGenerators(
+		{
+			mutator->generator<ExpressionGenerator>(),
+			mutator->generator<LocationGenerator>()
+		}
+	);
+}
+
+string SimpleVarDeclGenerator::visit()
 {
 	return Whiskers(simpleVarDeclTemplate)
-		("type", "uint"/*type->visit()*/)
-		("location", location.visit())
-		("name", identifier)
-		("assign", expression.has_value())
-		("expression", expression.value()->visit())
+		("type", generator<ExpressionGenerator>()->typeString())
+		("location", generator<LocationGenerator>()->visit())
+		("name", "v")
+		("assign", true)
+		("expression", generator<ExpressionGenerator>()->visit())
 		.render();
+
 }
 
 string ExpressionStatement::visit()
@@ -551,11 +562,95 @@ string ExpressionStatement::visit()
 	return Whiskers(exprStmtTemplate)("expression", "1").render();
 }
 
-string BlockStatement::visit()
+void StatementGenerator::setup()
 {
+	addGenerators(
+		{
+			mutator->generator<ExpressionGenerator>(),
+			mutator->generator<LocationGenerator>(),
+		}
+	);
+}
+
+string StatementGenerator::simpleStatement()
+{
+	bool variableDecl = MP{}.chooseOneOfN(2, rand);
+	string stmt;
+	if (variableDecl)
+	{
+		stmt = generator<ExpressionGenerator>()->typeString() +
+			" " +
+			generator<LocationGenerator>()->visit() +
+			" " +
+			"v" +
+			" = " +
+			generator<ExpressionGenerator>()->visit() +
+			";" +
+			"\n";
+	}
+	else
+	{
+		stmt = generator<ExpressionGenerator>()->visit() + ";" + "\n";
+	}
+	return stmt;
+}
+
+string StatementGenerator::statement()
+{
+	static size_t constexpr maxBlockStmts = 3;
+	if (nestingDepthTooHigh())
+		return simpleStatement();
+
+	incrementNestingDepth();
+
+	string stmt;
+	switch (randomType((*rand)()))
+	{
+	case Type::BLOCK:
+	{
+		stmt = "{";
+		for (size_t i = 0; i < MP{}.distributionOneToN(maxBlockStmts, rand); i++)
+			stmt += statement();
+		stmt += "}";
+		break;
+	}
+	case Type::SIMPLE:
+		stmt = simpleStatement();
+		break;
+	case Type::IF:
+		stmt = "if(" + generator<ExpressionGenerator>()->visit() + ")";
+		stmt += "{";
+		for (size_t i = 0; i < MP{}.distributionOneToN(maxBlockStmts, rand); i++)
+			stmt += statement();
+		stmt += "}";
+		break;
+	case Type::FOR:
+		stmt = "for(" +
+			simpleStatement() +
+			"; " +
+			generator<ExpressionGenerator>()->visit() +
+			"; " +
+			statement();
+		stmt += "{";
+		for (size_t i = 0; i < MP{}.distributionOneToN(maxBlockStmts, rand); i++)
+			stmt += statement();
+		stmt += "}";
+		break;
+	default:
+		stmt = simpleStatement();
+		break;
+	}
+	return stmt;
+}
+
+string StatementGenerator::visit()
+{
+	static size_t constexpr maxStatements = 5;
 	ostringstream os;
-	for (auto &stmt: statements)
-		os << std::visit(GeneratorTypeVisitor{}, stmt);
+	os << "{" << std::endl;
+	for (size_t i = 0; i < maxStatements; i++)
+		os << statement();
+	os << "}";
 	return os.str();
 }
 
@@ -630,7 +725,8 @@ void FunctionDefinitionGenerator::setup()
 		{
 			mutator->generator<ParameterListGenerator>(),
 			mutator->generator<ExpressionGenerator>(),
-			mutator->generator<NatSpecGenerator>()
+			mutator->generator<NatSpecGenerator>(),
+		    mutator->generator<StatementGenerator>()
 		}
 	);
 }
@@ -675,7 +771,7 @@ string FunctionDefinitionGenerator::visit()
 		("return", !returns.empty())
 		("retParamList", returns)
 		("definition", true)
-		("body", "{}")
+		("body", generator<StatementGenerator>()->visit())
 		.render();
 }
 
@@ -772,6 +868,7 @@ void SourceUnitGenerator::setup()
 			mutator->generator<ContractDefinitionGenerator>()
 		}
 	);
+	mutator->generator<FunctionDefinitionGenerator>()->freeFunctionMode();
 }
 
 string SourceUnitGenerator::visit()
@@ -787,18 +884,12 @@ void SourceUnitGenerator::reset()
 		std::visit(ResetVisitor{}, g);
 }
 
-string PragmaGenerator::generateExperimentalPragma()
-{
-	return "experimental ABIEncoderV2";
-//	return string("experimental ") + (MP{}.chooseOneOfN(2, rand) ? "SMTChecker" : "ABIEncoderV2");
-}
-
 string PragmaGenerator::visit()
 {
-	return Whiskers(m_pragmaTemplate)
-		("version", "solidity >= 0.0.0")
-		("experimental", generateExperimentalPragma())
-		.render();
+	return string("pragma solidity >= 0.0.0;") +
+		"\n" +
+		"pragma experimental SMTChecker;" +
+		"\n";
 }
 
 void ContractDefinitionGenerator::setup()
@@ -814,10 +905,12 @@ void ContractDefinitionGenerator::setup()
 
 string ContractDefinitionGenerator::visit()
 {
+	mutator->generator<FunctionDefinitionGenerator>()->contractFunctionMode();
 	string stateVar = generator<StateVariableDeclarationGenerator>()->visit();
 	string func = generator<FunctionDefinitionGenerator>()->visit();
 	generator<NatSpecGenerator>()->tagCategory(NatSpecGenerator::TagCategory::CONTRACT);
 	string natSpecString = generator<NatSpecGenerator>()->visit();
+	mutator->generator<FunctionDefinitionGenerator>()->freeFunctionMode();
 	return Whiskers(m_contractTemplate)
 		("natSpecString", natSpecString)
 		("abstract", MP{}.chooseOneOfN(s_abstractInvProb, rand))

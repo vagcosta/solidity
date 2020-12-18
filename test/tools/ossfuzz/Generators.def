@@ -37,7 +37,9 @@
 	MACRO(NatSpecGenerator) SEP \
 	MACRO(ParameterListGenerator) SEP \
 	MACRO(PragmaGenerator) SEP \
+	MACRO(SimpleVarDeclGenerator) SEP \
 	MACRO(SourceUnitGenerator) SEP \
+	MACRO(StatementGenerator) SEP \
 	MACRO(StateVariableDeclarationGenerator) SEP \
 	MACRO(TestCaseGenerator) SEP \
 	MACRO(VariableDeclarationGenerator) ENDSEP

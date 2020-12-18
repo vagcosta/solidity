@@ -151,7 +151,10 @@ struct GeneratorBase
 	virtual void reset() = 0;
 	virtual std::string name() = 0;
 	virtual void setup() = 0;
-	virtual ~GeneratorBase() {}
+	virtual ~GeneratorBase()
+	{
+		generators.clear();
+	}
 	std::shared_ptr<SolidityGenerator> mutator;
 	/// Random engine shared by Solidity mutators
 	std::shared_ptr<RandomEngine> rand;
@@ -210,7 +213,7 @@ struct SolidityType
 	)
 	enum class TypeCategory: size_t
 	{
-		BOOL,
+		BOOL = 0,
 		ADDRESS,
 		INTEGER,
 		BYTES,
@@ -658,12 +661,6 @@ public:
 	void reset() override {}
 	std::string visit() override;
 	std::string name() override { return "Pragma generator"; }
-private:
-	std::string generateExperimentalPragma();
-	const std::string m_pragmaTemplate =
-		std::string(R"(pragma <version>;)") +
-		"\n" +
-		R"(pragma <experimental>;)";
 };
 
 class ImportGenerator: public GeneratorBase
@@ -803,15 +800,6 @@ struct Statement
 	virtual std::string visit() = 0;
 };
 
-struct ExpressionStatement: Statement
-{
-	ExpressionStatement(Expression _expr): expression(std::move(_expr))
-	{}
-	std::string visit() override;
-	Expression expression;
-	std::string const exprStmtTemplate = R"(<expression>;)";
-};
-
 struct VariableDeclaration
 {
 	VariableDeclaration(std::shared_ptr<SolidityType> _type, Location _loc, std::string&& _id):
@@ -876,6 +864,17 @@ struct VariableDeclarationTuple
 		R"(<commaStarPre><varDecl><?commaStarPost><commaStar><!commaStarPost><commaSepVarDecls></commaStarPost>)";
 };
 
+struct ExpressionStatement: Statement
+{
+	ExpressionStatement()
+	{
+
+	}
+	std::string visit() override;
+	Expression expression;
+	std::string const exprStmtTemplate = R"(<expression>;)";
+};
+
 struct VariableDeclarationTupleAssignment: Statement
 {
 	VariableDeclarationTuple tuple;
@@ -885,26 +884,21 @@ struct VariableDeclarationTupleAssignment: Statement
 		R"(<tuple> = <expression>;)";
 };
 
-struct SimpleVariableDeclaration: Statement
+class SimpleVarDeclGenerator: public GeneratorBase
 {
-	SimpleVariableDeclaration(
-		std::shared_ptr<SolidityType> _type,
-		Location _loc,
-		std::string&& _id,
-		std::optional<std::shared_ptr<Expression>> _expr
-	):
-		type(std::move(_type)),
-		location(_loc),
-		identifier(std::move(_id)),
-		expression(std::move(_expr))
+public:
+	SimpleVarDeclGenerator(std::shared_ptr<SolidityGenerator> _mutator):
+		GeneratorBase(std::move(_mutator))
 	{}
-	std::shared_ptr<SolidityType> type;
-	Location location;
-	std::string identifier;
-	std::optional<std::shared_ptr<Expression>> expression;
+	void setup() override;
 	std::string visit() override;
+	void reset() override {}
+	std::string name() override
+	{
+		return "Simple var decl statement generator";
+	}
 	std::string const simpleVarDeclTemplate =
-		R"(<type> <location> <name><?assign> = <expression></assign>;)";
+		R"(<type> <location> <name><?assign> = <expression></assign>)";
 };
 
 struct GeneratorTypeVisitor
@@ -916,40 +910,98 @@ struct GeneratorTypeVisitor
 	}
 };
 
-struct VariableDeclarationStatement: Statement
-{
-	using VarDeclStmt = std::variant<SimpleVariableDeclaration, VariableDeclarationTupleAssignment>;
-	VariableDeclarationStatement(VarDeclStmt _stmt): stmt(std::move(_stmt))
-	{}
-	VarDeclStmt stmt;
-	std::string visit() override
-	{
-		return std::visit(GeneratorTypeVisitor{}, stmt);
-	}
-};
+//struct VariableDeclarationStatement: Statement
+//{
+//	using VarDeclStmt = std::variant<SimpleVariableDeclaration, VariableDeclarationTupleAssignment>;
+//	VariableDeclarationStatement(VarDeclStmt _stmt): stmt(std::move(_stmt))
+//	{}
+//	VarDeclStmt stmt;
+//	std::string visit() override
+//	{
+//		return std::visit(GeneratorTypeVisitor{}, stmt);
+//	}
+//};
 
-struct SimpleStatement: Statement
-{
-	using Stmt = std::variant<VariableDeclarationStatement, ExpressionStatement>;
-	SimpleStatement(Stmt _stmt): statement(std::move(_stmt))
-	{}
-	Stmt statement;
-	std::string visit() override
-	{
-		return std::visit(GeneratorTypeVisitor{}, statement);
-	}
-};
+//struct SimpleStatement: Statement
+//{
+//	using Stmt = std::variant<VariableDeclarationStatement, ExpressionStatement>;
+//	SimpleStatement(Stmt _stmt): statement(std::move(_stmt))
+//	{}
+//	Stmt statement;
+//	std::string visit() override
+//	{
+//		return std::visit(GeneratorTypeVisitor{}, statement);
+//	}
+//};
 
 /// Forward declaration
-struct BlockStatement;
-using StatementTy = std::variant<SimpleStatement, BlockStatement>;
+//using StatementTy = std::variant<SimpleStatement, BlockStatement>;
 
-struct BlockStatement: Statement
+class StatementGenerator: public GeneratorBase
 {
-	BlockStatement(std::vector<StatementTy>&& _stmts): statements(std::move(_stmts))
+public:
+	enum class Type: size_t
+	{
+		BLOCK = 0,
+		SIMPLE,
+		IF,
+		FOR,
+		WHILE,
+		DOWHILE,
+		CONTINUE,
+		BREAK,
+		TRY,
+		RETURN,
+		EMIT,
+		ASSEMBLY,
+		TYPEMAX
+	};
+	enum class YulStmtType: size_t
+	{
+		BLOCK = 0,
+		VARDECL,
+		ASSIGN,
+		FUNCTIONCALL,
+		IF,
+		FOR,
+		SWITCH,
+		LEAVE,
+		BREAK,
+		CONTINUE,
+		FUNCTIONDEF
+	};
+	StatementGenerator(std::shared_ptr<SolidityGenerator> _mutator):
+		GeneratorBase(std::move(_mutator)),
+		m_type(randomType((*rand)())),
+		m_statementNestingDepth(0)
 	{}
-	std::vector<StatementTy> statements;
+	void setup() override;
 	std::string visit() override;
+	void reset() override {}
+	std::string name() override
+	{
+		return "Block statement generator";
+	}
+private:
+	std::string statement();
+	static Type randomType(size_t _randomNumber)
+	{
+		return static_cast<Type>(
+			_randomNumber % static_cast<size_t>(Type::TYPEMAX)
+		);
+	}
+	void incrementNestingDepth()
+	{
+		m_statementNestingDepth++;
+	}
+	bool nestingDepthTooHigh()
+	{
+		return m_statementNestingDepth > s_maxNumNestedStatements;
+	}
+	std::string simpleStatement();
+	Type m_type;
+	size_t m_statementNestingDepth;
+	static size_t constexpr s_maxNumNestedStatements = 5;
 };
 
 class EnumDeclaration: public GeneratorBase
@@ -1053,7 +1105,6 @@ public:
 	std::string name() override { return "Contract generator"; }
 private:
 	std::optional<InheritanceSpecifierList> m_inheritanceList;
-	std::shared_ptr<BlockStatement> m_body;
 	const std::string m_contractTemplate =
 		R"(<natSpecString>)" +
 		std::string(R"(<?abstract>abstract</abstract> contract <id>)") +
