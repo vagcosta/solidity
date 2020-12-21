@@ -319,6 +319,16 @@ public:
 	{
 		return SolidityType(randomTypeCategory((*rand)()), rand).type.second;
 	}
+	std::shared_ptr<SolidityType> randomType()
+	{
+		return std::make_shared<SolidityType>(
+			SolidityType(randomTypeCategory((*rand)()), rand)
+		);
+	}
+	void setType(std::shared_ptr<SolidityType> _type)
+	{
+		m_type = *_type;
+	}
 private:
 	static SolidityType::TypeCategory randomTypeCategory(size_t _pseudoRandomNumber)
 	{
@@ -420,16 +430,33 @@ struct ExportedSymbols
 			types.emplace(_right);
 		return *this;
 	}
+	void removeSymbolsAndTypes()
+	{
+		symbols.clear();
+		types.clear();
+	}
 	std::string randomSymbol(std::shared_ptr<RandomEngine> _rand);
 	std::string randomUserDefinedType(std::shared_ptr<RandomEngine> _rand);
 	std::set<std::string> symbols;
 	std::set<std::string> types;
 };
 
-struct FunctionState
+struct State
 {
+	virtual ~State() {}
+};
+
+struct FunctionState: State
+{
+	~FunctionState()
+	{
+		std::cout << "Destroying function state" << std::endl;
+		inputParameters.clear();
+		returnParameters.clear();
+		locals.clear();
+	}
 	/// Parameter type, name pair
-	using ParamType = std::pair<SolidityType, std::string>;
+	using ParamType = std::pair<std::shared_ptr<SolidityType>, std::string>;
 	enum class Mutability
 	{
 		PURE,
@@ -499,24 +526,49 @@ struct FunctionState
 	{
 		returnParameters = std::move(_returnTypes);
 	}
+	void addReturn(std::shared_ptr<SolidityType>& _returnType)
+	{
+		returnParameters.push_back({_returnType, "r" + std::to_string(numReturns++)});
+	}
+	void addInput(std::shared_ptr<SolidityType>& _inputType)
+	{
+		inputParameters.push_back({_inputType, "i" + std::to_string(numInputs++)});
+	}
+	void addVariable(std::shared_ptr<SolidityType>& _variableType)
+	{
+		locals.push_back({_variableType, "v" + std::to_string(numLocals++)});
+	}
 	void setInheritance(Inheritance _inh)
 	{
 		inheritance = _inh;
 	}
-
+	bool identifiers()
+	{
+		return numReturns > 0 || numInputs > 0 || numLocals > 0;
+	}
 	bool operator==(FunctionState const& _other);
 	std::string name;
 	Mutability mutability;
 	Visibility visibility;
+	size_t numInputs;
+	size_t numReturns;
+	size_t numLocals;
 	std::vector<ParamType> inputParameters;
 	std::vector<ParamType> returnParameters;
+	std::vector<ParamType> locals;
 	Inheritance inheritance;
 };
 
-struct SourceUnitState
+struct SourceUnitState: State
 {
 	SourceUnitState(): exportedSymbols({})
 	{}
+	~SourceUnitState()
+	{
+		std::cout << "Destroying source unit state" << std::endl;
+		functions.clear();
+		exportedSymbols.removeSymbolsAndTypes();
+	}
 	void exportSymbol(std::string& _symbol)
 	{
 		exportedSymbols += _symbol;
@@ -529,6 +581,13 @@ struct SourceUnitState
 	{
 		exportedSymbols += _function->name;
 		functions.emplace_back(_function);
+	}
+	std::shared_ptr<FunctionState> currentFunction()
+	{
+		if (functions.size() > 0)
+			return functions[functions.size() - 1];
+		else
+			return nullptr;
 	}
 	bool functionExists(std::shared_ptr<FunctionState> _function)
 	{
@@ -572,13 +631,17 @@ struct ImportState
 	Alias aliases;
 };
 
-struct TestState
+struct TestState: State
 {
 	TestState(std::shared_ptr<RandomEngine> _rand):
 		sourceUnitStates({}),
 		currentSourceName({}),
 		rand(std::move(_rand))
 	{}
+	~TestState()
+	{
+		std::cout << "Destroying test state" << std::endl;
+	}
 	void addSourceUnit(std::string& _path)
 	{
 		sourceUnitStates.emplace(_path, SourceUnitState{});
@@ -602,6 +665,10 @@ struct TestState
 	SourceUnitState& currentSourceState()
 	{
 		return sourceUnitStates[currentSourceUnit()];
+	}
+	void removeSourceStates()
+	{
+		sourceUnitStates.clear();
 	}
 	std::map<std::string, SourceUnitState> sourceUnitStates;
 	std::string currentSourceName;
@@ -973,7 +1040,9 @@ public:
 	StatementGenerator(std::shared_ptr<SolidityGenerator> _mutator):
 		GeneratorBase(std::move(_mutator)),
 		m_type(randomType((*rand)())),
-		m_statementNestingDepth(0)
+		m_statementNestingDepth(0),
+		m_numVariables(0),
+		m_loop(false)
 	{}
 	void setup() override;
 	std::string visit() override;
@@ -983,6 +1052,10 @@ public:
 		return "Block statement generator";
 	}
 private:
+	std::string variableName()
+	{
+		return "v" + std::to_string(m_numVariables++);
+	}
 	std::string statement();
 	static Type randomType(size_t _randomNumber)
 	{
@@ -999,8 +1072,11 @@ private:
 		return m_statementNestingDepth > s_maxNumNestedStatements;
 	}
 	std::string simpleStatement();
+	std::string blockStatement();
 	Type m_type;
 	size_t m_statementNestingDepth;
+	size_t m_numVariables;
+	bool m_loop;
 	static size_t constexpr s_maxNumNestedStatements = 5;
 };
 
@@ -1062,9 +1138,7 @@ class FunctionDefinitionGenerator: public GeneratorBase
 public:
 	FunctionDefinitionGenerator(std::shared_ptr<SolidityGenerator> _mutator):
 		GeneratorBase(std::move(_mutator))
-	{
-		m_functionState = std::make_shared<FunctionState>();
-	}
+	{}
 	void setup() override;
 	std::string visit() override;
 	void reset() override {}
@@ -1247,6 +1321,10 @@ private:
 	void destroyGenerators()
 	{
 		m_generators.clear();
+	}
+	void destroyState()
+	{
+		m_state->removeSourceStates();
 	}
 	void initialize();
 	/// Random number generator

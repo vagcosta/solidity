@@ -118,7 +118,7 @@ string GenerationProbability::generateRandomHexString(size_t _length, std::share
 	static char const* hexDigit = "0123456789abcdefABCDEF";
 	vector<char> s{};
 	for (size_t i = 0; i < _length * 2; i++)
-		s.push_back(hexDigit[distributionOneToN(23, _rand) - 1]);
+		s.push_back(hexDigit[distributionOneToN(22, _rand) - 1]);
 	return string(s.begin(), s.end());
 }
 
@@ -128,20 +128,22 @@ pair<GenerationProbability::NumberLiteral, string> GenerationProbability::genera
 )
 {
 	static char const* hexDigit = "0123456789abcdefABCDEF";
-	static char const* decimalDigit = "0123456789eE";
+	static char const* decimalDigit = "0123456789";
 	vector<char> s{};
 	NumberLiteral n;
 	if (chooseOneOfN(2, _rand))
 	{
 		n = NumberLiteral::HEX;
 		for (size_t i = 0; i < _length * 2; i++)
-			s.push_back(hexDigit[distributionOneToN(23, _rand) - 1]);
+			s.push_back(hexDigit[distributionOneToN(22, _rand) - 1]);
 	}
 	else
 	{
 		n = NumberLiteral::DECIMAL;
-		for (size_t i = 0; i < _length * 2; i++)
-			s.push_back(decimalDigit[distributionOneToN(15, _rand) - 1]);
+		for (size_t i = 0; i < _length; i++)
+			s.push_back(decimalDigit[distributionOneToN(10, _rand) - 1]);
+		if (s[0] == '0')
+			s[0] = decimalDigit[distributionOneToN(9, _rand)];
 	}
 	return pair(n, string(s.begin(), s.end()));
 }
@@ -172,7 +174,7 @@ bool FunctionState::operator==(const FunctionState& _other)
 	{
 		unsigned index = 0;
 		for (auto const& type: _other.inputParameters)
-			if (type.first.type != inputParameters[index++].first.type)
+			if (type.first->type != inputParameters[index++].first->type)
 				return false;
 		return name == _other.name;
 	}
@@ -293,20 +295,25 @@ string ExpressionGenerator::addressLiteral()
 
 string ExpressionGenerator::literal()
 {
+	string lit;
 	switch (m_type.typeCategory)
 	{
 	case SolidityType::TypeCategory::ADDRESS:
-		return addressLiteral();
+		lit = addressLiteral();
+		break;
 	case SolidityType::TypeCategory::BOOL:
-		return boolLiteral();
+		lit = boolLiteral();
+		break;
 	case SolidityType::TypeCategory::BYTES:
-		return hexLiteral();
+		lit = hexLiteral();
+		break;
 	case SolidityType::TypeCategory::INTEGER:
-		return numberLiteral();
+		lit = numberLiteral();
+		break;
 	case SolidityType::TypeCategory::TYPEMAX:
 		solAssert(false, "");
 	}
-	solAssert(false, "");
+	return typeString() + "(" + lit + ")";
 }
 
 string ExpressionGenerator::expression()
@@ -373,7 +380,7 @@ string ExpressionGenerator::expression()
 			.render();
 		break;
 	case Type::CONDITIONAL:
-		expr = Whiskers(R"(<conditional> ? <trueExpression> : <falseExpression)")
+		expr = Whiskers(R"(<conditional> ? <trueExpression> : <falseExpression>)")
 			("conditional", expression())
 			("trueExpression", expression())
 			("falseExpression", expression())
@@ -397,11 +404,26 @@ string ExpressionGenerator::expression()
 		break;
 	}
 	case Type::IDENTIFIER:
+	{
+		vector<string> ids;
 		if (state->currentSourceState().symbols())
-			expr = state->currentSourceState().exportedSymbols.randomSymbol(rand);
+			for (auto &item: state->currentSourceState().exportedSymbols.symbols)
+				ids.push_back(item);
+		if (auto f = state->currentSourceState().currentFunction(); f && f->identifiers())
+		{
+			for (auto& item: f->inputParameters)
+				ids.push_back(item.second);
+			for (auto& item: f->returnParameters)
+				ids.push_back(item.second);
+			for (auto& item: f->locals)
+				ids.push_back(item.second);
+		}
+		if (ids.size() > 0)
+			expr = ids[MP{}.distributionOneToN(ids.size(), rand) - 1];
 		else
 			expr = literal();
 		break;
+	}
 	case Type::LITERAL:
 		expr = literal();
 		break;
@@ -578,26 +600,48 @@ string StatementGenerator::simpleStatement()
 	string stmt;
 	if (variableDecl)
 	{
-		stmt = generator<ExpressionGenerator>()->typeString() +
-			" " +
-			generator<LocationGenerator>()->visit() +
-			" " +
-			"v" +
-			" = " +
-			generator<ExpressionGenerator>()->visit() +
-			";" +
-			"\n";
+		if (auto f = state->currentSourceState().currentFunction(); f)
+		{
+			if (f->numReturns > 0)
+			{
+				auto t = f->returnParameters[
+					MP{}.distributionOneToN(f->returnParameters.size(), rand) - 1];
+				generator<ExpressionGenerator>()->setType(t.first);
+				stmt = t.second + " = " + generator<ExpressionGenerator>()->visit() + ";\n";
+			}
+			else
+			{
+				auto t = generator<ExpressionGenerator>()->randomType();
+				f->addVariable(t);
+				stmt = t->type.second +
+				       " " +
+				       generator<LocationGenerator>()->visit() +
+				       " " +
+				       "v" + to_string(f->numLocals - 1) +
+				       " = " +
+				       generator<ExpressionGenerator>()->visit() +
+				       ";" +
+				       "\n";
+			}
+		}
 	}
 	else
-	{
 		stmt = generator<ExpressionGenerator>()->visit() + ";" + "\n";
-	}
+	return stmt;
+}
+
+string StatementGenerator::blockStatement()
+{
+	static size_t constexpr maxBlockStmts = 3;
+	string stmt = "{";
+	for (size_t i = 0; i < MP{}.distributionOneToN(maxBlockStmts, rand); i++)
+		stmt += statement();
+	stmt += "}";
 	return stmt;
 }
 
 string StatementGenerator::statement()
 {
-	static size_t constexpr maxBlockStmts = 3;
 	if (nestingDepthTooHigh())
 		return simpleStatement();
 
@@ -608,10 +652,7 @@ string StatementGenerator::statement()
 	{
 	case Type::BLOCK:
 	{
-		stmt = "{";
-		for (size_t i = 0; i < MP{}.distributionOneToN(maxBlockStmts, rand); i++)
-			stmt += statement();
-		stmt += "}";
+		stmt = blockStatement();
 		break;
 	}
 	case Type::SIMPLE:
@@ -619,22 +660,80 @@ string StatementGenerator::statement()
 		break;
 	case Type::IF:
 		stmt = "if(" + generator<ExpressionGenerator>()->visit() + ")";
-		stmt += "{";
-		for (size_t i = 0; i < MP{}.distributionOneToN(maxBlockStmts, rand); i++)
-			stmt += statement();
-		stmt += "}";
+		stmt += blockStatement();
 		break;
 	case Type::FOR:
+	{
+		bool loop = m_loop;
+		m_loop = true;
 		stmt = "for(" +
-			simpleStatement() +
-			"; " +
+		       simpleStatement() +
+		       "; " +
+		       generator<ExpressionGenerator>()->visit() +
+		       "; " +
+		       statement();
+		stmt += blockStatement();
+		m_loop = loop;
+		break;
+	}
+	case Type::WHILE:
+	{
+		bool loop = m_loop;
+		m_loop = true;
+		stmt = "while(" + generator<ExpressionGenerator>()->visit() + ")";
+		stmt += blockStatement();
+		m_loop = loop;
+		break;
+	}
+	case Type::DOWHILE:
+	{
+		bool loop = m_loop;
+		m_loop = true;
+		stmt += "do" + blockStatement();
+		stmt += "while(" + generator<ExpressionGenerator>()->visit() + ")";
+		m_loop = loop;
+		break;
+	}
+	case Type::CONTINUE:
+		if (m_loop)
+			stmt = "continue;";
+		break;
+	case Type::BREAK:
+		if (m_loop)
+			stmt = "break;";
+		break;
+	case Type::TRY:
+		// TODO: Implement returns
+		stmt = "try " +
 			generator<ExpressionGenerator>()->visit() +
-			"; " +
-			statement();
-		stmt += "{";
-		for (size_t i = 0; i < MP{}.distributionOneToN(maxBlockStmts, rand); i++)
-			stmt += statement();
-		stmt += "}";
+			blockStatement();
+		stmt += "catch(bytes memory c)" + blockStatement();
+		break;
+	case Type::RETURN:
+	{
+		if (state->currentSourceState().currentFunction())
+		{
+			size_t numReturns = state->currentSourceState().currentFunction()->numReturns;
+			if (numReturns > 0)
+			{
+				stmt = "return (";
+				string sep{};
+				for (size_t i = 0; i < numReturns; i++)
+				{
+					stmt += sep + "r" + to_string(i);
+					if (sep.empty())
+						sep = ", ";
+				}
+				stmt += ");\n";
+			}
+		}
+		break;
+	}
+	case Type::EMIT:
+		// TODO
+		break;
+	case Type::ASSEMBLY:
+		stmt = "assembly {}";
 		break;
 	default:
 		stmt = simpleStatement();
@@ -733,6 +832,8 @@ void FunctionDefinitionGenerator::setup()
 
 string FunctionDefinitionGenerator::visit()
 {
+	m_functionState = make_shared<FunctionState>();
+	state->currentSourceState().addFunction(m_functionState);
 	string identifier = functionIdentifier();
 	if (!state->currentSourceState().exportedSymbols.symbols.count(identifier))
 		state->currentSourceState().exportedSymbols.symbols.insert(identifier);
@@ -747,12 +848,25 @@ string FunctionDefinitionGenerator::visit()
 		MP{}.chooseOneOfNStrings(s_freeFunctionMutability, rand) :
 		MP{}.chooseOneOfNStrings(s_mutability, rand);
 
-	size_t numReturns = MP{}.distributionOneToN(4, rand) - 1;
+	size_t numInputs = MP{}.distributionOneToN(4, rand) - 1;
 	string sep{};
+	string inputs{};
+	for (size_t i = 0; i < numInputs; i++)
+	{
+		auto inp = generator<ExpressionGenerator>()->randomType();
+		m_functionState->addInput(inp);
+		inputs += sep + inp->type.second + " " + "i" + to_string(m_functionState->numInputs - 1);
+		if (sep.empty())
+			sep = ", ";
+	}
+	sep.clear();
+	size_t numReturns = MP{}.distributionOneToN(4, rand) - 1;
 	string returns{};
 	for (size_t i = 0; i < numReturns; i++)
 	{
-		returns += sep + generator<ExpressionGenerator>()->randomTypeString();
+		auto r = generator<ExpressionGenerator>()->randomType();
+		m_functionState->addReturn(r);
+		returns += sep + r->type.second + " " + "r" + to_string(m_functionState->numReturns - 1);
 		if (sep.empty())
 			sep = ", ";
 	}
@@ -762,7 +876,7 @@ string FunctionDefinitionGenerator::visit()
 	return Whiskers(m_functionTemplate)
 		("natSpecString", natSpecString)
 		("id", identifier)
-		("paramList", generator<ParameterListGenerator>()->visit())
+		("paramList", inputs)
 		("visibility", visibility)
 		("stateMutability", mutability)
 		("modInvocation", modInvocation)
@@ -889,6 +1003,8 @@ string PragmaGenerator::visit()
 	return string("pragma solidity >= 0.0.0;") +
 		"\n" +
 		"pragma experimental SMTChecker;" +
+		"\n" +
+		"pragma experimental ABIEncoderV2;" +
 		"\n";
 }
 
@@ -1032,11 +1148,16 @@ string NatSpecGenerator::randomNatSpecString(TagCategory _category)
 
 string NatSpecGenerator::visit()
 {
+// TODO: Enable Natspec strings once we have better precision
+#if 1
+	return "";
+#else
 	reset();
 	return Whiskers(R"(<nl>/// <natSpecString><nl>)")
 		("natSpecString", randomNatSpecString(m_tag))
 		("nl", "\n")
 		.render();
+#endif
 }
 
 template <typename T>
@@ -1072,5 +1193,6 @@ string SolidityGenerator::generateTestProgram()
 		std::visit(AddDependenciesVisitor{}, g);
 	string program = generator<TestCaseGenerator>()->visit();
 	destroyGenerators();
+	destroyState();
 	return program;
 }
