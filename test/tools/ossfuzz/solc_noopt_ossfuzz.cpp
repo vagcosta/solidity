@@ -43,12 +43,18 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t const* _data, size_t _size)
 		{
 			return 0;
 		}
-		FuzzerUtil::testCompiler(
+		auto e = FuzzerUtil::testCompiler(
 			sourceCode,
 			/*optimize=*/false,
 			/*_rand=*/static_cast<unsigned>(_size),
 			/*forceSMT=*/true
 		);
+		if (e == FuzzerUtil::Error::SUCCESS)
+			std::cout << "Compiler: Success" << std::endl;
+		else if (e == FuzzerUtil::Error::FAILURE)
+			std::cout << "Compiler: Failure" << std::endl;
+		else
+			std::cout << "Compiler: Exception" << std::endl;
 	}
 	return 0;
 }

@@ -329,6 +329,10 @@ public:
 	{
 		m_type = *_type;
 	}
+	void setType(SolidityType _type)
+	{
+		m_type = _type;
+	}
 private:
 	static SolidityType::TypeCategory randomTypeCategory(size_t _pseudoRandomNumber)
 	{
@@ -336,6 +340,7 @@ private:
 			_pseudoRandomNumber % static_cast<size_t>(SolidityType::TypeCategory::TYPEMAX)
 		);
 	}
+	std::string identifier();
 	std::string boolLiteral()
 	{
 		return GenerationProbability{}.chooseOneOfN(2, rand) ? "true" : "false";

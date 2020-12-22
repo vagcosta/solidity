@@ -20,9 +20,8 @@
 
 #include <libsolutil/Whiskers.h>
 
-#include <boost/algorithm/string/join.hpp>
+#include <boost/preprocessor.hpp>
 #include <boost/range/adaptor/map.hpp>
-#include <boost/range/algorithm/copy.hpp>
 
 #include <algorithm>
 
@@ -30,6 +29,94 @@ using namespace solidity::test::fuzzer;
 using namespace solidity::util;
 using namespace std;
 using MP = solidity::test::fuzzer::GenerationProbability;
+
+namespace
+{
+
+/// Convenience macros
+/// Returns a valid Solidity integer width w such that 8 <= w <= 256.
+#define INTWIDTH(z, n, _ununsed) BOOST_PP_MUL(BOOST_PP_ADD(n, 1), 8)
+/// Using declaration that aliases long boost multiprecision types with
+/// s(u)<width> where <width> is a valid Solidity integer width and "s"
+/// stands for "signed" and "u" for "unsigned".
+#define USINGDECL(z, n, sign) \
+	using BOOST_PP_CAT(BOOST_PP_IF(sign, s, u), INTWIDTH(z, n,)) =             \
+	boost::multiprecision::number<                                             \
+		boost::multiprecision::cpp_int_backend<                                \
+			INTWIDTH(z, n,),                                                   \
+			INTWIDTH(z, n,),                                                   \
+			BOOST_PP_IF(                                                       \
+				sign,                                                          \
+				boost::multiprecision::signed_magnitude,                       \
+				boost::multiprecision::unsigned_magnitude                      \
+			),                                                                 \
+			boost::multiprecision::unchecked,                                  \
+			void                                                               \
+		>                                                                      \
+	>;
+/// Instantiate the using declarations for signed and unsigned integer types.
+	BOOST_PP_REPEAT(32, USINGDECL, 1)
+	BOOST_PP_REPEAT(32, USINGDECL, 0)
+/// Case implementation that returns an integer value of the specified type.
+/// For signed integers, we divide by two because the range for boost multiprecision
+/// types is double that of Solidity integer types. Example, 8-bit signed boost
+/// number range is [-255, 255] but Solidity `int8` range is [-128, 127]
+#define CASEIMPL(z, n, sign)                                                   \
+	case INTWIDTH(z, n,):                                                      \
+		stream << BOOST_PP_IF(                                                 \
+			sign,                                                              \
+			integerValue<                                                      \
+				BOOST_PP_CAT(                                                  \
+					BOOST_PP_IF(sign, s, u),                                   \
+					INTWIDTH(z, n,)                                            \
+                )>(_counter) / 2,                                              \
+			integerValue<                                                      \
+				BOOST_PP_CAT(                                                  \
+					BOOST_PP_IF(sign, s, u),                                   \
+					INTWIDTH(z, n,)                                            \
+                )>(_counter)                                                   \
+        );                                                                     \
+		break;
+/// Switch implementation that instantiates case statements for (un)signed
+/// Solidity integer types.
+#define SWITCHIMPL(sign)                                                       \
+	ostringstream stream;                                                      \
+	switch (_intWidth)                                                         \
+	{                                                                          \
+	BOOST_PP_REPEAT(32, CASEIMPL, sign)	                                       \
+	}	                                                                       \
+	return stream.str();
+
+template <typename V>
+static V integerValue(unsigned _counter)
+{
+	V value = V(
+		u256(keccak256(h256(_counter))) % u256(boost::math::tools::max_value<V>())
+	);
+	if (boost::multiprecision::is_signed_number<V>::value && value % 2 == 0)
+		return value * (-1);
+	else
+		return value;
+}
+
+static string signedIntegerValue(unsigned _counter, unsigned _intWidth)
+{
+	SWITCHIMPL(1)
+}
+
+static string unsignedIntegerValue(unsigned _counter, unsigned _intWidth)
+{
+	SWITCHIMPL(0)
+}
+
+static string integerValue(unsigned _counter, unsigned _intWidth, bool _signed)
+{
+	if (_signed)
+		return signedIntegerValue(_counter, _intWidth);
+	else
+		return unsignedIntegerValue(_counter, _intWidth);
+}
+}
 
 const std::vector<std::string> FunctionDefinitionGenerator::s_visibility = {
 	"public",
@@ -290,7 +377,8 @@ string ExpressionGenerator::numberLiteral()
 
 string ExpressionGenerator::addressLiteral()
 {
-	return "0x" + MP{}.generateRandomHexString(20, rand);
+	string addr = "0x" + MP{}.generateRandomHexString(20, rand);
+	return getChecksummedAddress(addr);
 }
 
 string ExpressionGenerator::literal()
@@ -316,6 +404,28 @@ string ExpressionGenerator::literal()
 	return typeString() + "(" + lit + ")";
 }
 
+string ExpressionGenerator::identifier()
+{
+	vector<string> ids;
+	// TODO: Implement typed identifiers
+//	if (state->currentSourceState().symbols())
+//		for (auto &item: state->currentSourceState().exportedSymbols.symbols)
+//			ids.push_back(item);
+	if (auto f = state->currentSourceState().currentFunction(); f && f->identifiers())
+	{
+		for (auto& item: f->inputParameters)
+			ids.push_back(item.second);
+		for (auto& item: f->returnParameters)
+			ids.push_back(item.second);
+		for (auto& item: f->locals)
+			ids.push_back(item.second);
+	}
+	if (ids.size() > 0)
+		return ids[MP{}.distributionOneToN(ids.size(), rand) - 1];
+	else
+		return "";
+}
+
 string ExpressionGenerator::expression()
 {
 	if (nestingDepthTooHigh())
@@ -327,101 +437,95 @@ string ExpressionGenerator::expression()
 	switch (MP{}.distributionOneToN(Type::TYPEMAX, rand) - 1)
 	{
 	case Type::INDEXACCESS:
-		expr = Whiskers(R"(<baseExpr>[<indexExpr>])")
-			("baseExpr", expression())
-			("indexExpr", expression())
-			.render();
+		// TODO: Implement index access
+		expr = literal();
+//		expr = Whiskers(R"(<baseExpr>[<indexExpr>])")
+//			("baseExpr", expression())
+//			("indexExpr", expression())
+//			.render();
 		break;
 	case Type::INDEXRANGEACCESS:
-		expr = Whiskers(R"(<baseExpr>[<startExpr>:<endExpr>])")
-			("baseExpr", expression())
-			("startExpr", expression())
-			("endExpr", expression())
-			.render();
+		// TODO: Implement index range access
+		expr = literal();
+//		expr = Whiskers(R"(<baseExpr>[<startExpr>:<endExpr>])")
+//			("baseExpr", expression())
+//			("startExpr", expression())
+//			("endExpr", expression())
+//			.render();
 		break;
 	case Type::METATYPE:
-		expr = Whiskers(R"(type(<typeName>))")
-			("typeName", randomTypeString())
-			.render();
+		// TODO: Implement metatype
+		expr = literal();
+//		expr = Whiskers(R"(type(<typeName>))")
+//			("typeName", randomTypeString())
+//			.render();
 		break;
 	case Type::BITANDOP:
-		expr = Whiskers(R"(<left> & <right>)")
-			("left", expression())
-			("right", expression())
-			.render();
+		setType(SolidityType(SolidityType::TypeCategory::INTEGER, rand));
+		expr = expression() + " & " + expression();
 		break;
 	case Type::BITOROP:
-		expr = Whiskers(R"(<left> | <right>)")
-			("left", expression())
-			("right", expression())
-			.render();
+		setType(SolidityType(SolidityType::TypeCategory::INTEGER, rand));
+		expr = expression() + " | " + expression();
 		break;
 	case Type::BITXOROP:
-		expr = Whiskers(R"(<left> ^ <right>)")
-			("left", expression())
-			("right", expression())
-			.render();
+		setType(SolidityType(SolidityType::TypeCategory::INTEGER, rand));
+		expr = expression() + " ^ " + expression();
 		break;
 	case Type::ANDOP:
-		expr = Whiskers(R"(<left> && <right>)")
-			("left", expression())
-			("right", expression())
-			.render();
+		setType(SolidityType(SolidityType::TypeCategory::BOOL, rand));
+		expr = expression() + " && " + expression();
 		break;
 	case Type::OROP:
-		expr = Whiskers(R"(<left> || <right>)")
-			("left", expression())
-			("right", expression())
-			.render();
+		setType(SolidityType(SolidityType::TypeCategory::BOOL, rand));
+		expr = expression() + " || " + expression();
 		break;
 	case Type::NEWEXPRESSION:
-		expr = Whiskers(R"(new <typeName>)")
-			("typeName", randomTypeString())
-			.render();
+		// TODO: Implement new expression
+		expr = literal();
+//		expr = Whiskers(R"(new <typeName>)")
+//			("typeName", randomTypeString())
+//			.render();
 		break;
 	case Type::CONDITIONAL:
-		expr = Whiskers(R"(<conditional> ? <trueExpression> : <falseExpression>)")
-			("conditional", expression())
-			("trueExpression", expression())
-			("falseExpression", expression())
-			.render();
+	{
+		SolidityType oldType = m_type;
+		setType(SolidityType(SolidityType::TypeCategory::BOOL, rand));
+		string condition = expression();
+		setType(oldType);
+		expr = condition + " ? " + expression() + " : " + expression();
 		break;
+	}
 	case Type::ASSIGNMENT:
-		expr = Whiskers(R"(<left> = <right>)")
-			("left", expression())
-			("right", expression())
-			.render();
+	{
+		// TODO: Implement lvalue expressions
+		auto id = identifier();
+		if (!id.empty())
+			expr = id + " = " + expression();
+		else
+			expr = literal();
 		break;
+	}
 	case Type::INLINEARRAY:
 	{
-		vector<string> exprs{};
-		size_t numElementsInTuple = MP{}.distributionOneToN(s_maxElementsInlineArray, rand);
-		for (size_t i = 0; i < numElementsInTuple; i++)
-			exprs.push_back(expression());
-		expr = Whiskers(R"([<inlineArrayExpression>])")
-			("inlineArrayExpression", boost::algorithm::join(exprs, ", "))
-			.render();
+		// TODO: Implement inline array expressions
+		expr = literal();
+//		vector<string> exprs{};
+//		size_t numElementsInTuple = MP{}.distributionOneToN(s_maxElementsInlineArray, rand);
+//		for (size_t i = 0; i < numElementsInTuple; i++)
+//			exprs.push_back(expression());
+//		expr = Whiskers(R"([<inlineArrayExpression>])")
+//			("inlineArrayExpression", boost::algorithm::join(exprs, ", "))
+//			.render();
 		break;
 	}
 	case Type::IDENTIFIER:
 	{
-		vector<string> ids;
-		if (state->currentSourceState().symbols())
-			for (auto &item: state->currentSourceState().exportedSymbols.symbols)
-				ids.push_back(item);
-		if (auto f = state->currentSourceState().currentFunction(); f && f->identifiers())
-		{
-			for (auto& item: f->inputParameters)
-				ids.push_back(item.second);
-			for (auto& item: f->returnParameters)
-				ids.push_back(item.second);
-			for (auto& item: f->locals)
-				ids.push_back(item.second);
-		}
-		if (ids.size() > 0)
-			expr = ids[MP{}.distributionOneToN(ids.size(), rand) - 1];
-		else
+		auto id = identifier();
+		if (id.empty())
 			expr = literal();
+		else
+			expr = id;
 		break;
 	}
 	case Type::LITERAL:
@@ -429,13 +533,15 @@ string ExpressionGenerator::expression()
 		break;
 	case Type::TUPLE:
 	{
-		vector<string> exprs{};
-		size_t numElementsInTuple = MP{}.distributionOneToN(s_maxElementsInTuple, rand);
-		for (size_t i = 0; i < numElementsInTuple; i++)
-			exprs.push_back(expression());
-		expr = Whiskers(R"((<tupleExpression>))")
-			("tupleExpression", boost::algorithm::join(exprs, ", "))
-			.render();
+		// TODO: Implement tuple
+		expr = literal();
+//		vector<string> exprs{};
+//		size_t numElementsInTuple = MP{}.distributionOneToN(s_maxElementsInTuple, rand);
+//		for (size_t i = 0; i < numElementsInTuple; i++)
+//			exprs.push_back(expression());
+//		expr = Whiskers(R"((<tupleExpression>))")
+//			("tupleExpression", boost::algorithm::join(exprs, ", "))
+//			.render();
 		break;
 	}
 	default:
@@ -542,6 +648,8 @@ string Location::visit()
 
 string LocationGenerator::visit()
 {
+	return "";
+	// TODO: Implement locations
 	switch (MP{}.distributionOneToN(4, rand))
 	{
 	case 1:
@@ -613,6 +721,7 @@ string StatementGenerator::simpleStatement()
 			{
 				auto t = generator<ExpressionGenerator>()->randomType();
 				f->addVariable(t);
+				generator<ExpressionGenerator>()->setType(*t);
 				stmt = t->type.second +
 				       " " +
 				       generator<LocationGenerator>()->visit() +
@@ -659,6 +768,9 @@ string StatementGenerator::statement()
 		stmt = simpleStatement();
 		break;
 	case Type::IF:
+		generator<ExpressionGenerator>()->setType(
+			{SolidityType::TypeCategory::BOOL, rand}
+		);
 		stmt = "if(" + generator<ExpressionGenerator>()->visit() + ")";
 		stmt += blockStatement();
 		break;
@@ -666,12 +778,14 @@ string StatementGenerator::statement()
 	{
 		bool loop = m_loop;
 		m_loop = true;
-		stmt = "for(" +
-		       simpleStatement() +
-		       "; " +
-		       generator<ExpressionGenerator>()->visit() +
-		       "; " +
-		       statement();
+		stmt = "for(" + simpleStatement();
+		generator<ExpressionGenerator>()->setType(
+			{SolidityType::TypeCategory::BOOL, rand}
+		);
+		stmt += generator<ExpressionGenerator>()->visit() +
+			"; " +
+			generator<ExpressionGenerator>()->visit() +
+			")";
 		stmt += blockStatement();
 		m_loop = loop;
 		break;
@@ -680,6 +794,9 @@ string StatementGenerator::statement()
 	{
 		bool loop = m_loop;
 		m_loop = true;
+		generator<ExpressionGenerator>()->setType(
+			{SolidityType::TypeCategory::BOOL, rand}
+		);
 		stmt = "while(" + generator<ExpressionGenerator>()->visit() + ")";
 		stmt += blockStatement();
 		m_loop = loop;
@@ -690,7 +807,10 @@ string StatementGenerator::statement()
 		bool loop = m_loop;
 		m_loop = true;
 		stmt += "do" + blockStatement();
-		stmt += "while(" + generator<ExpressionGenerator>()->visit() + ")";
+		generator<ExpressionGenerator>()->setType(
+			{SolidityType::TypeCategory::BOOL, rand}
+		);
+		stmt += "while(" + generator<ExpressionGenerator>()->visit() + ");";
 		m_loop = loop;
 		break;
 	}
@@ -703,11 +823,7 @@ string StatementGenerator::statement()
 			stmt = "break;";
 		break;
 	case Type::TRY:
-		// TODO: Implement returns
-		stmt = "try " +
-			generator<ExpressionGenerator>()->visit() +
-			blockStatement();
-		stmt += "catch(bytes memory c)" + blockStatement();
+		// TODO: Implement try
 		break;
 	case Type::RETURN:
 	{
@@ -873,6 +989,13 @@ string FunctionDefinitionGenerator::visit()
 
 	generator<NatSpecGenerator>()->tagCategory(NatSpecGenerator::TagCategory::FUNCTION);
 	string natSpecString = generator<NatSpecGenerator>()->visit();
+	if (
+		(visibility == "internal" || visibility == "private") &&
+		mutability == "payable"
+	)
+		visibility = "public";
+	if (visibility == "private" && virtualise == "virtual")
+		visibility = "public";
 	return Whiskers(m_functionTemplate)
 		("natSpecString", natSpecString)
 		("id", identifier)
@@ -963,10 +1086,11 @@ string ConstantVariableDeclaration::visit()
 {
 	// TODO: Set compileTimeConstantExpressionsOnly in
 	// ExpressionGenerator to true
+	string type = generator<ExpressionGenerator>()->typeString();
 	return Whiskers(constantVarDeclTemplate)
-		("type", generator<ExpressionGenerator>()->typeString())
+		("type", type)
 		("name", "c")
-		("expression", generator<ExpressionGenerator>()->visit())
+		("expression", type + "(" + generator<ExpressionGenerator>()->visit() + ")")
 		.render();
 }
 
@@ -1027,11 +1151,12 @@ string ContractDefinitionGenerator::visit()
 	generator<NatSpecGenerator>()->tagCategory(NatSpecGenerator::TagCategory::CONTRACT);
 	string natSpecString = generator<NatSpecGenerator>()->visit();
 	mutator->generator<FunctionDefinitionGenerator>()->freeFunctionMode();
+	// TODO: Implement inheritance
 	return Whiskers(m_contractTemplate)
 		("natSpecString", natSpecString)
 		("abstract", MP{}.chooseOneOfN(s_abstractInvProb, rand))
 		("id", "Cx")
-		("inheritance", MP{}.chooseOneOfN(s_inheritanceInvProb, rand))
+		("inheritance", false)
 		("inheritanceSpecifierList", "X")
 		("stateVar", stateVar)
 		("function", func)

@@ -82,7 +82,7 @@ void FuzzerUtil::forceSMT(StringMap& _input)
 			sourceUnit.second += smtPragma;
 }
 
-void FuzzerUtil::testCompiler(StringMap& _input, bool _optimize, unsigned _rand, bool _forceSMT)
+FuzzerUtil::Error FuzzerUtil::testCompiler(StringMap& _input, bool _optimize, unsigned _rand, bool _forceSMT)
 {
 	frontend::CompilerStack compiler;
 	EVMVersion evmVersion = s_evmVersions[_rand % s_evmVersions.size()];
@@ -110,20 +110,26 @@ void FuzzerUtil::testCompiler(StringMap& _input, bool _optimize, unsigned _rand,
 					*error,
 					formatter.formatErrorInformation(*error)
 				);
-			std::cerr << "Compiling contract failed" << std::endl;
+			return Error::FAILURE;
 		}
+		else
+			return Error::SUCCESS;
 	}
 	catch (Error const&)
 	{
+		return Error::EXCEPTION;
 	}
 	catch (FatalError const&)
 	{
+		return Error::EXCEPTION;
 	}
 	catch (UnimplementedFeatureError const&)
 	{
+		return Error::EXCEPTION;
 	}
 	catch (StackTooDeepError const&)
 	{
+		return Error::EXCEPTION;
 	}
 }
 
