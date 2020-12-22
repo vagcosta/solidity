@@ -23,6 +23,12 @@ class CompilerInterface(Enum):
     STANDARD_JSON = 'standard-json'
 
 
+class SMTUse(Enum):
+    PRESERVE = 'preserve'
+    DISABLE = 'disable'
+    STRIP_PRAGMAS = 'strip-pragmas'
+
+
 @dataclass(frozen=True)
 class ContractReport:
     contract_name: str
@@ -54,9 +60,12 @@ class FileReport:
         return report
 
 
-def load_source(path: Union[Path, str]) -> str:
+def load_source(path: Union[Path, str], smt_use: SMTUse) -> str:
     with open(path, mode='r', encoding='utf8') as source_file:
         file_content = source_file.read()
+
+    if smt_use == SMTUse.STRIP_PRAGMAS:
+        return file_content.replace('pragma experimental SMTChecker;', '')
 
     return file_content
 
@@ -124,33 +133,37 @@ def prepare_compiler_input(
     compiler_path: Path,
     source_file_name: Path,
     optimize: bool,
-    interface: CompilerInterface
+    interface: CompilerInterface,
+    smt_use: SMTUse
 ) -> Tuple[List[str], str]:
-
     if interface == CompilerInterface.STANDARD_JSON:
         json_input: dict = {
             'language': 'Solidity',
             'sources': {
-                str(source_file_name): {'content': load_source(source_file_name)}
+                str(source_file_name): {'content': load_source(source_file_name, smt_use)}
             },
             'settings': {
                 'optimizer': {'enabled': optimize},
                 'outputSelection': {'*': {'*': ['evm.bytecode.object', 'metadata']}},
-                'modelChecker': {'engine': 'none'},
             }
         }
+
+        if smt_use == SMTUse.DISABLE:
+            json_input['settings']['modelChecker'] = {'engine': 'none'}
 
         command_line = [str(compiler_path), '--standard-json']
         compiler_input = json.dumps(json_input)
     else:
         assert interface == CompilerInterface.CLI
 
-        compiler_options = [str(source_file_name), '--bin', '--metadata', '--model-checker-engine', 'none']
+        compiler_options = [str(source_file_name), '--bin', '--metadata']
         if optimize:
             compiler_options.append('--optimize')
+        if smt_use == SMTUse.DISABLE:
+            compiler_options += ['--model-checker-engine', 'none']
 
         command_line = [str(compiler_path)] + compiler_options
-        compiler_input = load_source(source_file_name)
+        compiler_input = load_source(source_file_name, smt_use)
 
     return (command_line, compiler_input)
 
@@ -160,15 +173,17 @@ def run_compiler(
     source_file_name: Path,
     optimize: bool,
     interface: CompilerInterface,
+    smt_use: SMTUse,
     tmp_dir: Path
-) -> FileReport:
+) -> FileReport:  # pylint: disable=too-many-arguments
 
     if interface == CompilerInterface.STANDARD_JSON:
         (command_line, compiler_input) = prepare_compiler_input(
             compiler_path,
             Path(Path(source_file_name).name),
             optimize,
-            interface
+            interface,
+            smt_use,
         )
 
         process = subprocess.run(
@@ -188,7 +203,8 @@ def run_compiler(
             compiler_path.absolute(),
             Path(source_file_name.name),
             optimize,
-            interface
+            interface,
+            smt_use,
         )
 
         # Create a copy that we can use directly with the CLI interface
@@ -207,13 +223,20 @@ def run_compiler(
         return parse_cli_output(Path(source_file_name), process.stdout)
 
 
-def generate_report(source_file_names: List[str], compiler_path: Path, interface: CompilerInterface):
+def generate_report(source_file_names: List[str], compiler_path: Path, interface: CompilerInterface, smt_use: SMTUse):
     with open('report.txt', mode='w', encoding='utf8', newline='\n') as report_file:
         for optimize in [False, True]:
             with TemporaryDirectory(prefix='prepare_report-') as tmp_dir:
                 for source_file_name in sorted(source_file_names):
                     try:
-                        report = run_compiler(Path(compiler_path), Path(source_file_name), optimize, interface, Path(tmp_dir))
+                        report = run_compiler(
+                            Path(compiler_path),
+                            Path(source_file_name),
+                            optimize,
+                            interface,
+                            smt_use,
+                            Path(tmp_dir)
+                        )
                         report_file.write(report.format_report())
                     except subprocess.CalledProcessError as exception:
                         print(
@@ -246,7 +269,14 @@ def commandline_parser() -> ArgumentParser:
         dest='interface',
         default=CompilerInterface.STANDARD_JSON.value,
         choices=[c.value for c in CompilerInterface],
-        help="Compiler interface to use."
+        help="Compiler interface to use.",
+    )
+    parser.add_argument(
+        '--smt-use',
+        dest='smt_use',
+        default=SMTUse.DISABLE.value,
+        choices=[s.value for s in SMTUse],
+        help="What to do about contracts that use the experimental SMT checker."
     )
     return parser;
 
@@ -257,4 +287,5 @@ if __name__ == "__main__":
         glob("*.sol"),
         Path(options.compiler_path),
         CompilerInterface(options.interface),
+        SMTUse(options.smt_use),
     )
