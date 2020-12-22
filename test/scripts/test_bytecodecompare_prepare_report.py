@@ -91,7 +91,7 @@ class TestPrepareReport_FileReport(unittest.TestCase):
         self.assertEqual(report.format_report(), '')
 
 
-class TestPrepareReport(unittest.TestCase):
+class TestPrepareReport_LoadSource(unittest.TestCase):
     def setUp(self):
         self.maxDiff = 10000
 
@@ -107,6 +107,11 @@ class TestPrepareReport(unittest.TestCase):
     def test_load_source_should_not_strip_smt_pragmas_if_not_requested(self):
         self.assertEqual(load_source(SMT_SMOKE_TEST_SOL_PATH, SMTUse.DISABLE), SMT_SMOKE_TEST_SOL_CODE)
         self.assertEqual(load_source(SMT_SMOKE_TEST_SOL_PATH, SMTUse.PRESERVE), SMT_SMOKE_TEST_SOL_CODE)
+
+
+class TestPrepareReport_PrepareCompilerInput(unittest.TestCase):
+    def setUp(self):
+        self.maxDiff = 10000
 
     def test_prepare_compiler_input_should_work_with_standard_json_interface(self):
         expected_compiler_input = {
@@ -125,6 +130,7 @@ class TestPrepareReport(unittest.TestCase):
             Path('solc'),
             SMT_SMOKE_TEST_SOL_PATH,
             optimize=True,
+            force_no_optimize_yul=False,
             interface=CompilerInterface.STANDARD_JSON,
             smt_use=SMTUse.DISABLE
         )
@@ -137,6 +143,7 @@ class TestPrepareReport(unittest.TestCase):
             Path('solc'),
             SMT_SMOKE_TEST_SOL_PATH,
             optimize=True,
+            force_no_optimize_yul=False,
             interface=CompilerInterface.CLI,
             smt_use=SMTUse.DISABLE
         )
@@ -146,6 +153,27 @@ class TestPrepareReport(unittest.TestCase):
             ['solc', str(SMT_SMOKE_TEST_SOL_PATH), '--bin', '--metadata', '--optimize', '--model-checker-engine', 'none']
         )
         self.assertEqual(compiler_input, SMT_SMOKE_TEST_SOL_CODE)
+
+    def test_prepare_compiler_input_should_handle_force_no_optimize_yul_flag(self):
+        (command_line, compiler_input) = prepare_compiler_input(
+            Path('solc'),
+            SMT_SMOKE_TEST_SOL_PATH,
+            optimize=False,
+            force_no_optimize_yul=True,
+            interface=CompilerInterface.CLI,
+            smt_use=SMTUse.DISABLE
+        )
+
+        self.assertEqual(
+            command_line,
+            ['solc', str(SMT_SMOKE_TEST_SOL_PATH), '--bin', '--metadata', '--no-optimize-yul', '--model-checker-engine', 'none'],
+        )
+        self.assertEqual(compiler_input, SMT_SMOKE_TEST_SOL_CODE)
+
+
+class TestPrepareReport_ParseStandardJSONOutput(unittest.TestCase):
+    def setUp(self):
+        self.maxDiff = 10000
 
     def test_parse_standard_json_output(self):
         expected_report = FileReport(
@@ -272,6 +300,11 @@ class TestPrepareReport(unittest.TestCase):
 
         self.assertEqual(parse_standard_json_output(Path('contract.sol'), compiler_output), expected_report)
 
+
+class TestPrepareReport_ParseCLIOutput(unittest.TestCase):
+    def setUp(self):
+        self.maxDiff = 10000
+
     def test_parse_cli_output(self):
         expected_report = FileReport(
             file_name=Path('syntaxTests/scoping/library_inherited2.sol'),
@@ -389,12 +422,14 @@ class TestPrepareReport(unittest.TestCase):
         expected_report = FileReport(
             file_name=Path('contract.sol'),
             contract_reports=[
+                # pragma pylint: disable=line-too-long
                 ContractReport(
                     contract_name='C',
                     file_name=None,
                     bytecode='6060604052346000575b60358060166000396000f30060606040525b60005600a165627a7a72305820ccf9337430b4c4f7d6ad41efb10a94411a2af6a9f173ef52daeadd31f4bf11890029',
                     metadata='{"compiler":{"version":"0.4.8+commit.60cc1668.mod.Darwin.appleclang"},"language":"Solidity","output":{"abi":[],"devdoc":{"methods":{}},"userdoc":{"methods":{}}},"settings":{"compilationTarget":{"contract.sol":"C"},"libraries":{},"optimizer":{"enabled":false,"runs":200},"remappings":[]},"sources":{"contract.sol":{"keccak256":"0xbe86d3681a198587296ad6d4a834606197e1a8f8944922c501631b04e21eeba2","urls":["bzzr://af16957d3d86013309d64d3cc572d007b1d8b08a821f2ff366840deb54a78524"]}},"version":1}',
                 )
+                # pragma pylint: enable=line-too-long
             ]
         )
 
@@ -411,7 +446,9 @@ class TestPrepareReport(unittest.TestCase):
 
         expected_report = FileReport(
             file_name=Path('contract.sol'),
-            contract_reports=[ContractReport(contract_name='C', file_name=Path('contract.sol'), bytecode='60806040523480156', metadata='{  }')]
+            contract_reports=[
+                ContractReport(contract_name='C', file_name=Path('contract.sol'), bytecode='60806040523480156', metadata='{  }')
+            ]
         )
 
         self.assertEqual(parse_cli_output(Path('contract.sol'), compiler_output), expected_report)
@@ -460,6 +497,7 @@ class TestPrepareReport(unittest.TestCase):
             __$fb58009a6b1ecea3b9d99bedd645df4ec3$__
         """)
 
+        # pragma pylint: disable=line-too-long
         expected_report = FileReport(
             file_name=Path('contract.sol'),
             contract_reports=[
@@ -467,5 +505,6 @@ class TestPrepareReport(unittest.TestCase):
                 ContractReport(contract_name='D', file_name=Path('contract.sol'), bytecode='__$fb58009a6b1ecea3b9d99bedd645df4ec3$__', metadata=None),
             ]
         )
+        # pragma pylint: enable=line-too-long
 
         self.assertEqual(parse_cli_output(Path('contract.sol'), compiler_output), expected_report)
