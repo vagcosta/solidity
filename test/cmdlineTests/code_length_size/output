@@ -1,0 +1,121 @@
+
+======= code_length_size/input.sol:C =======
+EVM assembly:
+    /* "code_length_size/input.sol":36:355  contract C {... */
+  mstore(0x40, 0x80)
+    /* "code_length_size/input.sol":83:189  constructor() {... */
+  callvalue
+  dup1
+  iszero
+  tag_1
+  jumpi
+  0x00
+  dup1
+  revert
+tag_1:
+  pop
+    /* "code_length_size/input.sol":122:126  this */
+  address
+    /* "code_length_size/input.sol":114:139  address(this).code.length */
+  dup1
+  extcodesize
+    /* "code_length_size/input.sol":107:111  len1 */
+  0x00
+    /* "code_length_size/input.sol":107:139  len1 = address(this).code.length */
+  sstore
+    /* "code_length_size/input.sol":156:181  address(this).code.length */
+  extcodesize
+    /* "code_length_size/input.sol":149:153  len2 */
+  0x01
+    /* "code_length_size/input.sol":149:181  len2 = address(this).code.length */
+  sstore
+    /* "code_length_size/input.sol":36:355  contract C {... */
+  dataSize(sub_0)
+  dup1
+  dataOffset(sub_0)
+  0x00
+  codecopy
+  0x00
+  return
+stop
+
+sub_0: assembly {
+        /* "code_length_size/input.sol":36:355  contract C {... */
+      mstore(0x40, 0x80)
+      callvalue
+      dup1
+      iszero
+      tag_1
+      jumpi
+      0x00
+      dup1
+      revert
+    tag_1:
+      pop
+      jumpi(tag_2, lt(calldatasize, 0x04))
+      shr(0xe0, calldataload(0x00))
+      dup1
+      0x26121ff0
+      eq
+      tag_3
+      jumpi
+    tag_2:
+      0x00
+      dup1
+      revert
+        /* "code_length_size/input.sol":194:353  function f() public view returns (uint r1, uint r2) {... */
+    tag_3:
+      tag_4
+      tag_5
+      jump	// in
+    tag_4:
+      mload(0x40)
+      tag_6
+      swap3
+      swap2
+      swap1
+      tag_7
+      jump	// in
+    tag_6:
+      mload(0x40)
+      dup1
+      swap2
+      sub
+      swap1
+      return
+    tag_5:
+        /* "code_length_size/input.sol":269:273  this */
+      address
+        /* "code_length_size/input.sol":261:286  address(this).code.length */
+      extcodesize
+      swap1
+        /* "code_length_size/input.sol":228:235  uint r1 */
+      0x00
+        /* "code_length_size/input.sol":333:346  a.code.length */
+      extcodesize
+      swap1
+        /* "code_length_size/input.sol":194:353  function f() public view returns (uint r1, uint r2) {... */
+      jump	// out
+        /* "#utility.yul":14:262   */
+    tag_7:
+        /* "#utility.yul":188:213   */
+      swap2
+      dup3
+      mstore
+        /* "#utility.yul":244:246   */
+      0x20
+        /* "#utility.yul":229:247   */
+      dup3
+      add
+        /* "#utility.yul":222:256   */
+      mstore
+        /* "#utility.yul":176:178   */
+      0x40
+        /* "#utility.yul":161:179   */
+      add
+      swap1
+        /* "#utility.yul":143:262   */
+      jump	// out
+
+    auxdata: <AUXDATA REMOVED>
+}
