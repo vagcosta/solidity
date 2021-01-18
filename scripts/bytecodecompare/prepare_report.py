@@ -186,7 +186,9 @@ def run_compiler(
 
         # Create a copy that we can use directly with the CLI interface
         modified_source_path = tmp_dir / source_file_name.name
-        with open(modified_source_path, 'w', encoding='utf8') as modified_source_file:
+        # NOTE: newline='' disables newline conversion.
+        # We want the file exactly as is because changing even a single byte in the source affects metadata.
+        with open(modified_source_path, 'w', encoding='utf8', newline='') as modified_source_file:
             modified_source_file.write(compiler_input)
 
         process = subprocess.run(
