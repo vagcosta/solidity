@@ -907,9 +907,9 @@ jobs:
       - run: cd test-cases && ../scripts/bytecodecompare/prepare_report.py ../build/solc/solc --interface standard-json && mv -v report.txt ../bytecode-report-ubuntu-json.txt
       - run: cd test-cases && ../scripts/bytecodecompare/prepare_report.py ../build/solc/solc --interface cli && mv -v report.txt ../bytecode-report-ubuntu-cli.txt
       - store_artifacts:
-          path: report-json.txt
+          path: bytecode-report-ubuntu-json.txt
       - store_artifacts:
-          path: report-cli.txt
+          path: bytecode-report-ubuntu-cli.txt
       - persist_to_workspace:
           root: .
           paths:
@@ -930,9 +930,9 @@ jobs:
       - run: cd test-cases && ../scripts/bytecodecompare/prepare_report.py ../build/solc/solc --interface standard-json && mv -v report.txt ../bytecode-report-osx-json.txt
       - run: cd test-cases && ../scripts/bytecodecompare/prepare_report.py ../build/solc/solc --interface cli && mv -v report.txt ../bytecode-report-osx-cli.txt
       - store_artifacts:
-          path: report-json.txt
+          path: bytecode-report-osx-json.txt
       - store_artifacts:
-          path: report-cli.txt
+          path: bytecode-report-osx-cli.txt
       - persist_to_workspace:
           root: .
           paths:
@@ -952,9 +952,9 @@ jobs:
       - run: cd test-cases\ && python ..\scripts\bytecodecompare\prepare_report.py ..\build\solc\Release\solc.exe --interface standard-json && move report.txt ..\bytecode-report-windows-json.txt
       - run: cd test-cases\ && python ..\scripts\bytecodecompare\prepare_report.py ..\build\solc\Release\solc.exe --interface cli && move report.txt ..\bytecode-report-windows-cli.txt
       - store_artifacts:
-          path: report-json.txt
+          path: bytecode-report-windows-json.txt
       - store_artifacts:
-          path: report-cli.txt
+          path: bytecode-report-windows-cli.txt
       - persist_to_workspace:
           root: .
           paths:
@@ -970,9 +970,9 @@ jobs:
       - checkout
       - attach_workspace:
           at: emscripten_build/libsolc
-      - run: scripts/bytecodecompare/storebytecode.sh && cp -v report.txt bytecode-report-emscripten.txt
+      - run: scripts/bytecodecompare/storebytecode.sh && mv -v report.txt bytecode-report-emscripten.txt
       - store_artifacts:
-          path: report.txt
+          path: bytecode-report-emscripten.txt
       - persist_to_workspace:
           root: .
           paths:
