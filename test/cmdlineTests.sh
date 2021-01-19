@@ -35,6 +35,12 @@ SOLIDITY_BUILD_DIR=${SOLIDITY_BUILD_DIR:-${REPO_ROOT}/build}
 source "${REPO_ROOT}/scripts/common.sh"
 source "${REPO_ROOT}/scripts/common_cmdline.sh"
 
+AUTOUPDATE=""
+if [ "$1" == "--update" ]
+then
+    AUTOUPDATE="true"
+fi
+
 case "$OSTYPE" in
     msys)
         SOLC="${SOLIDITY_BUILD_DIR}/solc/Release/solc.exe"
@@ -66,11 +72,17 @@ function ask_expectation_update()
 {
     if [ $INTERACTIVE ]
     then
+        if [[ "$AUTOUPDATE" == "true" ]]
+        then
+            echo "$newExpectation" > $expectationFile ;
+            return
+        fi
         local newExpectation="${1}"
         local expectationFile="${2}"
         while true;
         do
-            read -p "(u)pdate expectation/(q)uit? "
+            read -N 1 -p "(u)pdate expectation/(q)uit? "
+            echo
             case $REPLY in
                 u* ) echo "$newExpectation" > $expectationFile ; break;;
                 q* ) exit 1;;
